@@ -4,6 +4,7 @@
 
 @layer base {
   html {
+    font-size: 16px;
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -19,6 +20,8 @@
     font-family: 'Hind', sans-serif;
     overscroll-behavior-y: none;
     background-color: #f1f5f9;
+    font-size: 15px;
+    line-height: 1.5;
   }
 
   /* Improve Hindi font rendering, spacing and legibility */
@@ -26,9 +29,20 @@
     font-family: 'Hind', sans-serif;
   }
 
+  /* Prevent unwanted auto-zoom on mobile devices when focusing inputs */
+  @media screen and (max-width: 768px) {
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
   /* Optimize momentum scrolling on mobile browsers */
   .momentum-scroll {
     -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }
 

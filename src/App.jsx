@@ -4,6 +4,7 @@ import HouseholdEntry from './components/HouseholdEntry';
 import HouseholdListView from './components/HouseholdListView';
 import LocationSettingsModal from './components/LocationSettingsModal';
 import { db, initDefaultSettings } from './db/db';
+import { syncPendingData } from './db/supabase';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('1');
@@ -23,6 +24,11 @@ export default function App() {
         setIsSettingsOpen(true);
       }
     });
+
+    // Auto-sync on startup if online: downloads records entered on other devices
+    if (navigator.onLine) {
+      syncPendingData().catch((err) => console.warn('Startup sync notice:', err));
+    }
   }, []);
 
   const handleSectionChange = async (section) => {

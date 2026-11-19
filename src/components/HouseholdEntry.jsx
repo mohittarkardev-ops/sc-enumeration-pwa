@@ -107,10 +107,14 @@ export default function HouseholdEntry({
 
   const handleSaveMemberFromModal = (memberData) => {
     let updated = [...members];
+    const memberWithId = {
+      ...memberData,
+      local_id: memberData.local_id || `mem_temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+    };
     if (editingMemberIndex !== null) {
-      updated[editingMemberIndex] = memberData;
+      updated[editingMemberIndex] = memberWithId;
     } else {
-      updated.push(memberData);
+      updated.push(memberWithId);
     }
 
     // SMART RECIPROCAL SPOUSE CROSS-LINKING:
@@ -187,9 +191,16 @@ export default function HouseholdEntry({
       await db.members.where('household_local_id').equals(currentLocalId).delete();
     }
 
-    for (const mem of members) {
+    for (let idx = 0; idx < members.length; idx++) {
+      const mem = members[idx];
+      const memberLocalId = mem.local_id && !mem.local_id.startsWith('mem_temp_') 
+        ? mem.local_id 
+        : `mem_${householdLocalId}_${idx + 1}_${Math.random().toString(36).substring(2, 6)}`;
+
       const memberRecord = {
         ...mem,
+        local_id: memberLocalId,
+        serial_no: idx + 1,
         household_local_id: householdLocalId,
         sync_status: 'pending',
         created_at: mem.created_at || new Date().toISOString(),
@@ -300,8 +311,8 @@ export default function HouseholdEntry({
           </span>
         </div>
 
-        {/* 3 Horizontal Touch Steppers [-] [Input] [+] */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {/* 3 Responsive Touch Steppers: 2 on row 1, Family No prominent on mobile */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
           
           {/* 1. भवन संख्या */}
           <div className="space-y-1">
@@ -365,16 +376,26 @@ export default function HouseholdEntry({
             </div>
           </div>
 
-          {/* 3. परिवार संख्या (पूर्ण संपादन योग्य) */}
-          <div className="space-y-1">
-            <label className="block text-xs sm:text-sm font-bold text-[#0B3B60] text-center">
-              परिवार संख्या <span className="text-red-600">*</span>
-            </label>
-            <div className="flex items-center border-2 border-[#0B3B60] rounded-xl overflow-hidden bg-blue-50/20 shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/30">
+          {/* 3. परिवार संख्या (Prominent Full Width on Mobile with Quick +1) */}
+          <div className="col-span-2 sm:col-span-1 space-y-1 bg-blue-50/40 p-2 sm:p-0 rounded-xl border sm:border-0 border-blue-200/80">
+            <div className="flex items-center justify-between sm:justify-center">
+              <label className="block text-xs sm:text-sm font-bold text-[#0B3B60] text-center">
+                परिवार संख्या <span className="text-red-600">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => adjustNumber(householdNo, setHouseholdNo, 1)}
+                className="sm:hidden text-xs font-bold text-white bg-[#0B3B60] px-2.5 py-0.5 rounded-lg active:scale-95 shadow-xs"
+              >
+                +1 अगला परिवार
+              </button>
+            </div>
+
+            <div className="flex items-center border-2 border-[#0B3B60] rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/30">
               <button
                 type="button"
                 onClick={() => adjustNumber(householdNo, setHouseholdNo, -1)}
-                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                className="w-11 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
                 title="घटाएं (-1)"
               >
                 <Minus className="w-4 h-4" />
@@ -383,12 +404,12 @@ export default function HouseholdEntry({
                 type="text"
                 value={householdNo}
                 onChange={(e) => setHouseholdNo(sanitizeAlphanumeric(e.target.value))}
-                className="w-full text-center font-black text-sm sm:text-base text-[#0B3B60] py-2 focus:outline-none"
+                className="w-full text-center font-black text-base sm:text-lg text-[#0B3B60] py-2 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => adjustNumber(householdNo, setHouseholdNo, 1)}
-                className="w-10 sm:w-11 h-11 bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold border-l border-blue-900 active:bg-[#072F5F] transition-colors flex items-center justify-center shrink-0"
+                className="w-11 sm:w-11 h-11 bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold border-l border-blue-900 active:bg-[#072F5F] transition-colors flex items-center justify-center shrink-0"
                 title="बढ़ाएं (+1)"
               >
                 <Plus className="w-4 h-4" />
@@ -463,7 +484,9 @@ export default function HouseholdEntry({
             {members.map((m, idx) => (
               <div 
                 key={m.local_id || idx}
-                className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 shadow-sm transition-all flex items-center justify-between gap-3"
+                onClick={() => handleOpenEditMember(idx)}
+                className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-white hover:bg-blue-50/40 active:scale-99 shadow-sm transition-all flex items-center justify-between gap-3 cursor-pointer"
+                title="संशोधन हेतु कार्ड पर टैप करें"
               >
                 {/* Left: Serial Badge + Details */}
                 <div className="flex items-center gap-3">
@@ -511,16 +534,23 @@ export default function HouseholdEntry({
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
-                    onClick={() => handleOpenEditMember(idx)}
-                    className="p-2.5 rounded-xl text-[#0B3B60] hover:bg-slate-100 border border-slate-200 active:scale-95 transition-all shadow-sm min-h-[42px] min-w-[42px] flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditMember(idx);
+                    }}
+                    className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-[#0B3B60] bg-blue-50 hover:bg-blue-100 border border-blue-200 active:scale-95 transition-all shadow-xs min-h-[38px] flex items-center gap-1 text-xs font-bold"
                     title="संशोधन करें"
                   >
-                    <Edit3 className="w-4 h-4" />
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">बदलें</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDeleteMember(idx)}
-                    className="p-2.5 rounded-xl text-red-600 hover:bg-red-50 border border-slate-200 active:scale-95 transition-all shadow-sm min-h-[42px] min-w-[42px] flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteMember(idx);
+                    }}
+                    className="p-2 rounded-xl text-red-600 hover:bg-red-50 border border-slate-200 active:scale-95 transition-all shadow-xs min-h-[38px] min-w-[38px] flex items-center justify-center"
                     title="हटाएं"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -580,8 +610,8 @@ export default function HouseholdEntry({
         </div>
       </div>
 
-      {/* Sticky Bottom Bar with Comfortable Tap Size */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:p-3.5 z-20 shadow-lg">
+      {/* Sticky Bottom Bar with Comfortable Tap Size & No GPU-Lag Backdrop Filter */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-3 sm:p-3.5 z-20 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <div className="text-xs sm:text-sm font-black text-slate-800 shrink-0">
             परिवार #{householdNo} • {members.length} सदस्य
@@ -590,7 +620,7 @@ export default function HouseholdEntry({
           <button
             type="button"
             onClick={handleSaveHousehold}
-            className="flex-1 py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-black text-sm sm:text-base rounded-xl shadow-md flex items-center justify-center gap-2 transition-all min-h-[48px]"
+            className="flex-1 py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-black text-sm sm:text-base rounded-xl shadow-md flex items-center justify-center gap-2 transition-all min-h-[50px]"
           >
             <Save className="w-5 h-5" />
             <span>परिवार प्रपत्र सुरक्षित करें</span>

@@ -163,7 +163,7 @@ export default function LocationSettingsModal({ isOpen, onClose, onSettingsUpdat
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto font-['Hind']">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/80 overflow-y-auto font-['Hind']">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto border border-slate-200">
         
         {/* Official Header */}

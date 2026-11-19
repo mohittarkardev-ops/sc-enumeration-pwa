@@ -8,44 +8,98 @@ import {
   Download, 
   ChevronDown, 
   ChevronUp,
-  Edit,
-  FolderOpen
+  FolderOpen,
+  RefreshCw,
+  CloudDownload,
+  Plus,
+  Edit3,
+  Phone,
+  Layers,
+  MapPin
 } from 'lucide-react';
 import { db } from '../db/db';
 import { exportAllDataToExcel } from '../utils/exportExcel';
+import { syncPendingData } from '../db/supabase';
 
 export default function HouseholdListView({ activeSection, onNewEntry, onEditHousehold }) {
-  const [households, setHouseholds] = useState([]);
+  const [allHouseholds, setAllHouseholds] = useState([]);
   const [members, setMembers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedHhId, setExpandedHhId] = useState(null);
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullMsg, setPullMsg] = useState('');
+  const [sectionFilter, setSectionFilter] = useState(activeSection || 'all');
+  const [sectionsList, setSectionsList] = useState([]);
 
+  // Load all households, members, and dynamic sections from IndexedDB
   const loadData = useCallback(async () => {
     try {
-      const hhList = await db.households
-        .where('village_section')
-        .equals(activeSection)
-        .reverse()
-        .sortBy('created_at');
-      setHouseholds(hhList);
+      const hhs = await db.households.toArray();
+      // Sort newest first
+      hhs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      setAllHouseholds(hhs);
 
       const memList = await db.members.toArray();
       setMembers(memList);
+
+      const settings = await db.settings.get('active_settings');
+      if (settings && settings.sections) {
+        setSectionsList(settings.sections);
+      } else {
+        setSectionsList([
+          { id: '1', name: 'सेक्शन 1' },
+          { id: '2', name: 'सेक्शन 2' },
+          { id: '3', name: 'सेक्शन 3' }
+        ]);
+      }
     } catch (err) {
       console.warn('Error loading household registry:', err);
     }
-  }, [activeSection]);
+  }, []);
 
   useEffect(() => {
     loadData();
-    // Gentle refresh when window is focused or every 10 seconds (no battery/CPU lag)
     window.addEventListener('focus', loadData);
-    const interval = setInterval(loadData, 10000);
     return () => {
       window.removeEventListener('focus', loadData);
-      clearInterval(interval);
     };
   }, [loadData]);
+
+  // Synchronize section filter when activeSection prop changes from Header
+  useEffect(() => {
+    if (activeSection) {
+      setSectionFilter(activeSection);
+    }
+  }, [activeSection]);
+
+  // One-time startup auto-pull if local DB is empty
+  useEffect(() => {
+    if (navigator.onLine && allHouseholds.length === 0) {
+      syncPendingData()
+        .then((res) => {
+          if (res.success && (res.downloadedHhCount > 0 || res.totalRemoteHhs > 0)) {
+            loadData();
+          }
+        })
+        .catch((e) => console.warn('Auto-pull notice:', e));
+    }
+  }, []);
+
+  const handleManualSync = async () => {
+    if (isPulling) return;
+    setIsPulling(true);
+    setPullMsg('क्लाउड से डेटा डाउनलोड व समन्वयित हो रहा है...');
+    try {
+      const res = await syncPendingData();
+      setPullMsg(res.message);
+      await loadData();
+    } catch (err) {
+      setPullMsg('सिंक विफलता: ' + (err.message || err));
+    } finally {
+      setIsPulling(false);
+      setTimeout(() => setPullMsg(''), 7000);
+    }
+  };
 
   const handleDeleteHousehold = async (localId) => {
     if (confirm('क्या आप इस परिवार और इसके सभी सदस्यों का संपूर्ण रिकॉर्ड हटाना चाहते हैं?')) {
@@ -55,38 +109,126 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
     }
   };
 
-  const filteredHouseholds = households.filter((h) => {
+  // Safe section matching (handles '1', 1, 'सेक्शन 1')
+  const matchesSection = (h, filter) => {
+    if (!filter || filter === 'all') return true;
+    const sec = String(h.village_section || '').trim();
+    const target = String(filter).trim();
+    return sec === target || sec === `सेक्शन ${target}` || sec === `Section ${target}`;
+  };
+
+  const filteredHouseholds = allHouseholds.filter((h) => {
+    if (!matchesSection(h, sectionFilter)) return false;
+    if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
       (h.head_name && h.head_name.toLowerCase().includes(q)) ||
-      (h.household_no && h.household_no.includes(q)) ||
-      (h.census_house_no && h.census_house_no.includes(q)) ||
-      (h.building_no && h.building_no.includes(q))
+      (h.household_no && String(h.household_no).includes(q)) ||
+      (h.census_house_no && String(h.census_house_no).includes(q)) ||
+      (h.building_no && String(h.building_no).includes(q)) ||
+      (h.remarks && h.remarks.toLowerCase().includes(q))
     );
   });
+
+  // Calculate count per section for badges
+  const getSectionCount = (secId) => {
+    if (secId === 'all') return allHouseholds.length;
+    return allHouseholds.filter((h) => matchesSection(h, secId)).length;
+  };
 
   return (
     <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-24 font-['Hind'] text-sm">
       
-      {/* Official Registry Stats Header */}
+      {/* Sync feedback notification */}
+      {pullMsg && (
+        <div className="bg-blue-50 border border-blue-300 text-blue-900 p-3 sm:p-3.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-bold shadow-sm animate-fade-in">
+          <span>{pullMsg}</span>
+          <button onClick={() => setPullMsg('')} className="text-blue-600 hover:text-black font-black p-1">✕</button>
+        </div>
+      )}
+
+      {/* Official Registry Header & Filter Bar */}
       <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 flex-wrap gap-2">
           <div>
-            <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
-              ग्राम प्रभाग {activeSection} — परिवार पंजिका (Household Roster)
+            <h2 className="text-sm sm:text-base font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
+              <FolderOpen className="w-4 h-4 text-[#0B3B60]" />
+              <span>परिवार पंजिका (Household Roster)</span>
             </h2>
-            <div className="text-xs text-slate-600 font-medium mt-0.5">
-              पंजीकृत परिवार: <strong className="text-slate-900">{households.length}</strong> | कुल सदस्य संख्या: <strong className="text-slate-900">{members.filter(m => households.some(h => h.local_id === m.household_local_id)).length}</strong>
+            <div className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
+              दर्ज परिवार: <strong className="text-slate-900 font-bold">{filteredHouseholds.length}</strong> (कुल {allHouseholds.length}) | सदस्य: <strong className="text-slate-900 font-bold">{members.length}</strong>
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+            {/* Quick Two-Way Sync / Pull Button */}
+            <button
+              onClick={handleManualSync}
+              disabled={isPulling}
+              title="क्लाउड से नए परिवार व सदस्य डाउनलोड करें"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0B3B60] border border-blue-200 text-xs sm:text-sm font-extrabold shadow-xs active:scale-95 transition-all min-h-[40px]"
+            >
+              <RefreshCw className={`w-4 h-4 text-[#0B3B60] ${isPulling ? 'animate-spin' : ''}`} />
+              <span>{isPulling ? 'सिंक जारी...' : 'क्लाउड सिंक'}</span>
+            </button>
+
+            {/* Excel Export */}
+            <button
+              onClick={exportAllDataToExcel}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-sm active:scale-95 transition-all min-h-[40px]"
+            >
+              <Download className="w-4 h-4 text-amber-300" />
+              <span className="hidden xs:inline">Excel</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Section Filter Pills with Family Counts */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide shrink-0 mr-1">
+            प्रभाग फ़िल्टर:
+          </span>
+          
           <button
-            onClick={exportAllDataToExcel}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-sm active:scale-95 transition-all min-h-[38px]"
+            type="button"
+            onClick={() => setSectionFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all border active:scale-95 flex items-center gap-1 ${
+              sectionFilter === 'all'
+                ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
           >
-            <Download className="w-4 h-4 text-amber-300" />
-            <span>Excel एक्सपोर्ट</span>
+            <span>सभी प्रभाग</span>
+            <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+              sectionFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {allHouseholds.length}
+            </span>
           </button>
+
+          {sectionsList.map((sec) => {
+            const count = getSectionCount(sec.id);
+            const isSelected = sectionFilter === sec.id;
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => setSectionFilter(sec.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition-all border active:scale-95 flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>{sec.name}</span>
+                <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Search Input */}
@@ -97,28 +239,47 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="मुखिया का नाम, परिवार संख्या या मकान संख्या से खोजें..."
-            className="w-full pl-10 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+            className="w-full pl-10 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base font-medium bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
           />
         </div>
       </div>
 
       {/* Household Records List */}
       {filteredHouseholds.length === 0 ? (
-        <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-2">
-          <Users className="w-10 h-10 text-slate-400 mx-auto" />
-          <p className="text-sm font-bold text-slate-800">कोई प्रविष्टि प्राप्त नहीं हुई</p>
-          <p className="text-xs text-slate-500">
-            {searchQuery ? 'सर्च फ़िल्टर के अनुसार कोई रिकॉर्ड उपलब्ध नहीं है।' : `भाग ${activeSection} में अभी तक कोई परिवार दर्ज नहीं हुआ है।`}
-          </p>
-          <button
-            onClick={onNewEntry}
-            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#0B3B60] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:bg-[#134D7E] active:scale-95"
-          >
-            + नया परिवार प्रपत्र भरें
-          </button>
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 text-center space-y-4 shadow-sm">
+          <Users className="w-14 h-14 text-slate-300 mx-auto" />
+          <div>
+            <p className="text-base sm:text-lg font-extrabold text-slate-900">
+              {allHouseholds.length === 0 ? 'कोई परिवार दर्ज नहीं है' : 'चयनित प्रभाग में कोई परिवार नहीं मिला'}
+            </p>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+              {allHouseholds.length === 0
+                ? 'यदि आपने मोबाइल फोन से डेटा दर्ज कर क्लाउड पर भेजा है, तो डेटा को इस डिवाइस में डाउनलोड करने हेतु नीचे दिया गया बटन दबाएँ:'
+                : `कुल ${allHouseholds.length} परिवार अन्य प्रभागों में दर्ज हैं। सभी देखने हेतु 'सभी प्रभाग' चुनें।`}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
+            <button
+              onClick={handleManualSync}
+              disabled={isPulling}
+              className="w-full sm:w-auto px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all min-h-[46px]"
+            >
+              <CloudDownload className={`w-5 h-5 ${isPulling ? 'animate-bounce' : ''}`} />
+              <span>{isPulling ? 'क्लाउड से डाउनलोड हो रहा है...' : 'क्लाउड से डेटा डाउनलोड करें (Pull Sync)'}</span>
+            </button>
+
+            <button
+              onClick={onNewEntry}
+              className="w-full sm:w-auto px-5 py-3 bg-[#0B3B60] hover:bg-[#134D7E] text-white rounded-xl text-sm font-bold shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all min-h-[46px]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ नया परिवार प्रपत्र भरें</span>
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {filteredHouseholds.map((h) => {
             const isExpanded = expandedHhId === h.local_id;
             const hhMembers = members.filter((m) => m.household_local_id === h.local_id);
@@ -131,46 +292,47 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                 {/* Main Summary Row */}
                 <div
                   onClick={() => setExpandedHhId(isExpanded ? null : h.local_id)}
-                  className="p-3 sm:p-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors gap-2"
+                  className="p-3.5 sm:p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors gap-2"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-13 h-11 px-2.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center shrink-0 shadow-inner">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase leading-none">परिवार</span>
-                      <span className="text-sm sm:text-base font-black text-[#0B3B60] leading-tight">
+                    <div className="w-14 h-12 px-2 rounded-xl border border-blue-200 bg-blue-50 flex flex-col items-center justify-center shrink-0 shadow-inner">
+                      <span className="text-[10px] text-[#0B3B60] font-black uppercase leading-none">परिवार</span>
+                      <span className="text-base sm:text-lg font-black text-[#0B3B60] leading-none mt-1">
                         #{h.household_no}
                       </span>
                     </div>
 
-                    <div>
+                    <div className="space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-sm sm:text-base text-slate-900">
-                          {h.head_name || 'मुखिया अज्ञात'}
+                        <span className="font-black text-base sm:text-lg text-slate-900 leading-tight">
+                          {h.head_name || 'अज्ञात मुखिया'}
                         </span>
-                        {h.status === 'draft' && (
-                          <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-amber-300">
-                            अपूर्ण
-                          </span>
-                        )}
+                        <span className="text-[11px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">
+                          सेक्शन {h.village_section}
+                        </span>
                       </div>
-                      <div className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                        मकान सं.: <strong className="text-slate-800">{h.census_house_no}</strong> | भवन: <strong className="text-slate-800">{h.building_no}</strong> | कुल सदस्य: <strong className="text-slate-800">{h.total_members}</strong>
+
+                      <div className="text-xs sm:text-sm text-slate-600 font-medium">
+                        भवन सं.: <strong className="text-slate-800">{h.building_no}</strong> | मकान सं.: <strong className="text-slate-800">{h.census_house_no}</strong> | सदस्य: <strong className="text-[#0B3B60] font-bold">{hhMembers.length || h.total_members}</strong>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Sync Status Badge */}
-                    {h.sync_status === 'synced' ? (
-                      <span className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 font-bold">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="hidden xs:inline">समन्वित</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[11px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 font-bold">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span className="hidden xs:inline">लोकल DB</span>
-                      </span>
-                    )}
+                  <div className="flex items-center gap-2">
+                    {/* Status Pill */}
+                    <div className="hidden xs:flex items-center">
+                      {h.sync_status === 'synced' ? (
+                        <span className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg font-bold">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>क्लाउड सुरक्षित</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-bold">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>लोकल (पेंडिंग)</span>
+                        </span>
+                      )}
+                    </div>
 
                     {isExpanded ? (
                       <ChevronUp className="w-5 h-5 text-slate-400" />
@@ -180,70 +342,72 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                   </div>
                 </div>
 
-                {/* Expanded Details & Actions */}
+                {/* Expanded Details / Member List */}
                 {isExpanded && (
-                  <div className="bg-slate-50 border-t border-slate-200 p-3.5 space-y-2.5 text-xs sm:text-sm">
+                  <div className="border-t border-slate-100 bg-slate-50/70 p-3.5 sm:p-4 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                        सदस्य विवरणी तालिका ({hhMembers.length}):
-                      </span>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                        सदस्य सूची ({hhMembers.length})
+                      </h4>
 
-                      {/* Open / Edit Household Button */}
-                      {onEditHousehold && (
+                      <div className="flex items-center gap-2">
                         <button
-                          type="button"
                           onClick={() => onEditHousehold(h, hhMembers)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0B3B60] hover:bg-[#134D7E] text-white text-xs sm:text-sm font-bold transition-all shadow-sm active:scale-95 min-h-[36px]"
+                          className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#0B3B60] text-xs sm:text-sm font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all min-h-[38px]"
                         >
-                          <FolderOpen className="w-4 h-4 text-amber-300" />
-                          <span>प्रपत्र खोलें व संपादित करें</span>
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>संशोधन करें</span>
                         </button>
-                      )}
-                    </div>
-                    
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                      <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                        <thead className="bg-slate-100 text-[11px] font-bold uppercase text-slate-700 border-b border-slate-200">
-                          <tr>
-                            <th className="py-2 px-2.5 text-center w-10">क्र.</th>
-                            <th className="py-2 px-2.5">नाम</th>
-                            <th className="py-2 px-2.5 text-center">आयु/लिंग</th>
-                            <th className="py-2 px-2.5">सम्पर्क / आधार</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                          {hhMembers.map((m, idx) => (
-                            <tr key={m.local_id || idx} className="hover:bg-slate-50/60">
-                              <td className="py-2 px-2.5 text-center font-black text-slate-700">
-                                {m.serial_no}
-                              </td>
-                              <td className="py-2 px-2.5 font-bold text-slate-900">
-                                {m.q1_name}
-                              </td>
-                              <td className="py-2 px-2.5 text-center text-slate-600">
-                                {m.q4b_age} वर्ष / {m.q3_gender === 1 ? 'पु.' : m.q3_gender === 2 ? 'महि.' : 'अन्य'}
-                              </td>
-                              <td className="py-2 px-2.5 text-slate-600 font-mono text-xs">
-                                {m.q36_mobile_number || 'मो. शेष'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                        <button
+                          onClick={() => handleDeleteHousehold(h.local_id)}
+                          className="p-2 rounded-xl text-red-600 hover:bg-red-50 border border-slate-200 shadow-xs active:scale-95 transition-all min-h-[38px] min-w-[38px] flex items-center justify-center"
+                          title="हटाएं"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="pt-2 flex items-center justify-between border-t border-slate-200 flex-wrap gap-2">
-                      <span className="text-xs text-slate-500">
-                        प्रविष्टि समय: {new Date(h.created_at).toLocaleString('hi-IN')}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteHousehold(h.local_id)}
-                        className="text-red-700 hover:text-red-900 flex items-center gap-1 text-xs sm:text-sm font-bold min-h-[36px]"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>प्रपत्र निरस्त करें</span>
-                      </button>
-                    </div>
+                    {hhMembers.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-1">कोई सदस्य विवरण नहीं मिला।</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {hhMembers.map((m) => (
+                          <div
+                            key={m.local_id || m.serial_no}
+                            className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-2 shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 font-extrabold text-xs text-slate-700 flex items-center justify-center shrink-0">
+                                {m.serial_no}
+                              </span>
+                              <div>
+                                <div className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
+                                  {m.q1_name} {m.serial_no === 1 && <span className="text-[11px] text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded font-bold ml-1">मुखिया</span>}
+                                </div>
+                                <div className="text-xs text-slate-600 font-medium mt-0.5">
+                                  आयु: {m.q4b_age} वर्ष | लिंग: {m.q3_gender === 1 ? 'पुरुष' : m.q3_gender === 2 ? 'महिला' : 'अन्य'} | जाति: {m.q10c_caste_name || 'सामान्य'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {m.q36_mobile_number && (
+                              <div className="flex items-center gap-1 text-xs text-slate-600 font-mono">
+                                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{m.q36_mobile_number}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {h.remarks && (
+                      <div className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
+                        <strong className="text-slate-700">रिमार्क्स:</strong> {h.remarks}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

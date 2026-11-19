@@ -57,6 +57,7 @@ export default function MemberModal({
   const [isAgeLocked, setIsAgeLocked] = useState(false);
 
   const initialData = {
+    local_id: existingMember?.local_id || ('mem_temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
     serial_no: serialNo,
     q1_name: '',
     q2_relationship: serialNo === 1 ? 1 : 2,
@@ -328,8 +329,8 @@ export default function MemberModal({
   const progressPercent = Math.round(((activeTab + 1) / tabs.length) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 bg-slate-900/80 backdrop-blur-sm overflow-hidden font-['Hind']">
-      <div className="bg-white rounded-2xl w-full max-w-xl h-[94vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 overflow-hidden font-['Hind']">
+      <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-xl h-full sm:h-[94vh] shadow-2xl flex flex-col border-0 sm:border border-slate-200 overflow-hidden">
         
         {/* Official Header with Refined Padding */}
         <div className="bg-[#0B3B60] text-white px-4 py-3 flex items-center justify-between shrink-0 border-b border-[#072F5F]">
@@ -2169,39 +2170,54 @@ export default function MemberModal({
 
         </div>
 
-        {/* Footer Navigation & Save */}
-        <div className="bg-slate-100 border-t border-slate-200 p-3 shrink-0 flex items-center justify-between gap-2">
+        {/* Footer Navigation & Save - Thumb-friendly Mobile Bar */}
+        <div className="bg-white border-t border-slate-200 p-2.5 sm:p-3 shrink-0 flex items-center justify-between gap-2 shadow-lg">
           {activeTab > 0 ? (
             <button
               type="button"
               onClick={() => setActiveTab((prev) => prev - 1)}
-              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs sm:text-sm min-h-[42px] flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+              className="px-3.5 sm:px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs sm:text-sm min-h-[44px] flex items-center gap-1 active:scale-95 transition-all shadow-xs"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>पूर्व खंड</span>
+              <span>पिछला</span>
             </button>
-          ) : <div />}
+          ) : <div className="w-12" />}
+
+          <span className="text-xs font-bold text-slate-500 font-mono hidden xs:inline">
+            खंड {activeTab + 1} / {tabs.length}
+          </span>
 
           <div className="flex items-center gap-2">
             {activeTab < tabs.length - 1 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab((prev) => prev + 1)}
+                  className="px-4 sm:px-5 py-2.5 rounded-xl bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold text-xs sm:text-sm min-h-[44px] flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                >
+                  <span>अगला खंड</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveMember}
+                  title="अंतिम खंड से पहले भी सीधे सुरक्षित कर सकते हैं"
+                  className="hidden sm:flex px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm min-h-[44px] items-center gap-1 active:scale-95 shadow-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>सुरक्षित करें</span>
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={() => setActiveTab((prev) => prev + 1)}
-                className="px-4 py-2.5 rounded-xl bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold text-xs sm:text-sm min-h-[42px] flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                onClick={handleSaveMember}
+                className="px-5 sm:px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm min-h-[44px] flex items-center gap-1.5 active:scale-95 shadow-md transition-all"
               >
-                <span>अगला खंड</span>
-                <ChevronRight className="w-4 h-4" />
+                <Check className="w-4 h-4" />
+                <span>सदस्य विवरणी सुरक्षित करें</span>
               </button>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={handleSaveMember}
-              className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm min-h-[42px] flex items-center gap-1.5 active:scale-95 shadow-md transition-all"
-            >
-              <Check className="w-4 h-4" />
-              <span>सदस्य विवरणी सुरक्षित करें</span>
-            </button>
+            )}
           </div>
         </div>
 
