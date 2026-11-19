@@ -157,12 +157,20 @@ export default function MemberModal({
         setFormData(merged);
       } else {
         const newData = { ...initialData, serial_no: serialNo };
-        // Smart prefill for Member #2 (Spouse)
-        if (serialNo === 2 && headMember) {
+        // Smart prefill for Member #2: ONLY if Head is actually married (status 2) and no spouse exists yet
+        const headIsMarried = headMember && Number(headMember.q5_marital_status) === 2;
+        const spouseAlreadyExists = householdMembers.some(m => Number(m.q2_relationship) === 2);
+
+        if (serialNo === 2 && headIsMarried && !spouseAlreadyExists) {
           newData.q2_relationship = 2; // पति या पत्नी
           newData.q3_gender = headMember.q3_gender === 1 ? 2 : 1; // विपरीत लिंग
           newData.q5_marital_status = 2; // विवाहित
           newData.q7_spouse_serial_no = '1'; // मुखिया से स्वतः लिंक
+        } else if (serialNo > 1) {
+          newData.q2_relationship = 3; // बेटा/बेटी
+          newData.q3_gender = 1;
+          newData.q5_marital_status = 1; // अविवाहित
+          newData.q7_spouse_serial_no = '';
         }
         if (serialNo > 1 && headMember) {
           newData.q9_religion = headMember.q9_religion || 1;
@@ -641,9 +649,9 @@ export default function MemberModal({
                             <div className="grid grid-cols-2 gap-2">
                               <button
                                 type="button"
-                                onClick={() => setFormData({ ...formData, q7_spouse_serial_no: '2' })}
+                                onClick={() => setFormData({ ...formData, q7_spouse_serial_no: '' })}
                                 className={`p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all text-left flex items-start gap-2 ${
-                                  formData.q7_spouse_serial_no === '2' || !formData.q7_spouse_serial_no
+                                  formData.q7_spouse_serial_no === ''
                                     ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
                                     : 'bg-white text-slate-700 border-slate-300'
                                 }`}
@@ -651,7 +659,7 @@ export default function MemberModal({
                                 <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                                 <div>
                                   <div>इसी परिवार में हैं</div>
-                                  <div className="text-[10px] opacity-85 font-normal">अगले सदस्य (क्र. 2) से स्वतः लिंक</div>
+                                  <div className="text-[10px] opacity-85 font-normal">जीवनसाथी (02) जोड़ने पर स्वतः लिंक होगा</div>
                                 </div>
                               </button>
 
@@ -675,7 +683,7 @@ export default function MemberModal({
                             {formData.q7_spouse_serial_no !== '00' && (
                               <p className="text-xs text-blue-900 font-semibold flex items-center gap-1.5 pt-0.5">
                                 <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                                <span>सुविधा: जब आप क्र.सं. 2 (जीवनसाथी) जोड़ेंगे, तो क्र.सं. 1 और 2 स्वतः आपस में लिंक हो जाएंगे।</span>
+                                <span>सुविधा: जब आप परिवार में पति/पत्नी (कोड 02) जोड़ेंगे, तो क्र.सं. 1 और जीवनसाथी स्वतः आपस में लिंक हो जाएंगे।</span>
                               </p>
                             )}
                           </div>
