@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Check, AlertCircle, Sparkles, ChevronDown } from 'lucide-react';
+import { X, UserPlus, Check, AlertCircle, Sparkles, ChevronDown, QrCode } from 'lucide-react';
 import { RELATIONSHIP_CODES, GENDER_CODES, MARITAL_STATUS_CODES } from '../constants/censusCodes';
 import { sanitizeText, sanitizeNumeric, formatDobInput, parseAndValidateDob } from '../utils/validation';
+import AadhaarQRScanner from './AadhaarQRScanner';
 
 export default function QuickMemberModal({
   isOpen,
@@ -16,7 +17,11 @@ export default function QuickMemberModal({
   const [gender, setGender] = useState(1);
   const [dob, setDob] = useState('');
   const [age, setAge] = useState('');
+  const [isAgeLocked, setIsAgeLocked] = useState(false);
   const [maritalStatus, setMaritalStatus] = useState(1);
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [scannedAddress, setScannedAddress] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const head = householdMembers.find((m) => Number(m.q2_relationship) === 1);
@@ -34,10 +39,21 @@ export default function QuickMemberModal({
         setDob(existingMember.q4a_dob || '');
         setAge(existingMember.q4b_age !== undefined ? String(existingMember.q4b_age) : '');
         setMaritalStatus(Number(existingMember.q5_marital_status) || 1);
+        setAadhaarNumber(existingMember.q37_aadhaar_number || '');
+        setScannedAddress(existingMember.q30_permanent_address || '');
+        if (existingMember.q4a_dob && existingMember.q4a_dob.trim().length === 10) {
+          const res = parseAndValidateDob(existingMember.q4a_dob);
+          setIsAgeLocked(res.isValid && res.calculatedAge !== null);
+        } else {
+          setIsAgeLocked(false);
+        }
       } else {
         setName('');
         setDob('');
         setAge('');
+        setIsAgeLocked(false);
+        setAadhaarNumber('');
+        setScannedAddress('');
         setErrorMsg('');
 
         if (serialNo === 1) {
@@ -64,6 +80,30 @@ export default function QuickMemberModal({
 
   if (!isOpen) return null;
 
+  // Handle Aadhaar QR scan result
+  const handleScanSuccess = (parsed) => {
+    if (!parsed) return;
+    if (parsed.name) setName(parsed.name);
+    if (parsed.gender) setGender(parsed.gender);
+    if (parsed.dob) {
+      setDob(parsed.dob);
+      if (parsed.age !== null && parsed.age !== undefined) {
+        setAge(String(parsed.age));
+        setIsAgeLocked(true);
+      }
+    } else if (parsed.age !== null && parsed.age !== undefined) {
+      setAge(String(parsed.age));
+    }
+    // Only prefill aadhaar if full 12 unmasked digits exist
+    if (parsed.aadhaarNumber && parsed.aadhaarNumber.length === 12 && !parsed.aadhaarNumber.includes('X')) {
+      setAadhaarNumber(parsed.aadhaarNumber);
+    }
+    if (parsed.address) {
+      setScannedAddress(parsed.address);
+    }
+    setErrorMsg('');
+  };
+
   // Smart gender & marital status auto-adjust on relationship change
   const handleRelationshipSelect = (relCode) => {
     const code = Number(relCode);
@@ -89,14 +129,18 @@ export default function QuickMemberModal({
       const res = parseAndValidateDob(formatted);
       if (res.isValid && res.calculatedAge !== null) {
         setAge(String(res.calculatedAge));
+        setIsAgeLocked(true);
         setErrorMsg('');
         // If age < 18, set unmarried
         if (res.calculatedAge < 18 && relationship !== 2) {
           setMaritalStatus(1);
         }
       } else {
+        setIsAgeLocked(false);
         setErrorMsg(res.message);
       }
+    } else {
+      setIsAgeLocked(false);
     }
   };
 
@@ -117,6 +161,7 @@ export default function QuickMemberModal({
     }
 
     const finalAge = age !== '' ? parseInt(age, 10) : 0;
+    const cleanAadhaar = sanitizeNumeric(aadhaarNumber).slice(0, 12);
 
     const memberData = {
       ...(existingMember || {}),
@@ -134,9 +179,11 @@ export default function QuickMemberModal({
       q10c_caste_name: existingMember?.q10c_caste_name || head?.q10c_caste_name || '',
       q13a_disabled: existingMember?.q13a_disabled || 2,
       q14a_mother_tongue: existingMember?.q14a_mother_tongue || head?.q14a_mother_tongue || 'हिन्दी',
-      q30_permanent_address_same: true,
+      q30_permanent_address_same: !scannedAddress,
+      q30_permanent_address: scannedAddress || existingMember?.q30_permanent_address || '',
       q35_bank_accounts_count: existingMember?.q35_bank_accounts_count || 1,
-      q36_mobile_number: existingMember?.q36_mobile_number || (serialNo === 1 ? '' : head?.q36_mobile_number || '')
+      q36_mobile_number: existingMember?.q36_mobile_number || (serialNo === 1 ? '' : head?.q36_mobile_number || ''),
+      q37_aadhaar_number: cleanAadhaar
     };
 
     onSave(memberData, addAnother);
@@ -145,6 +192,9 @@ export default function QuickMemberModal({
       setName('');
       setDob('');
       setAge('');
+      setIsAgeLocked(false);
+      setAadhaarNumber('');
+      setScannedAddress('');
       setRelationship(3); // Default to son/daughter for next member
       setGender(1);
       setMaritalStatus(1);
@@ -191,6 +241,26 @@ export default function QuickMemberModal({
               <span>{errorMsg}</span>
             </div>
           )}
+
+          {/* Aadhaar QR Scanner Fast Action Banner */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-2.5 rounded-2xl border border-blue-200 flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-[#0B3B60] text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
+                <QrCode className="w-4 h-4" />
+              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-900 leading-tight">आधार कार्ड QR स्कैनर</p>
+                <p className="text-[10px] text-slate-600">नाम, लिंग, जन्म तिथि व पता स्वतः भरें</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-[#0B3B60] hover:bg-[#072F5F] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+            >
+              <span>📷 QR स्कैन करें</span>
+            </button>
+          </div>
 
           {/* 1. व्यक्ति का नाम */}
           <div className="space-y-1">
@@ -353,6 +423,27 @@ export default function QuickMemberModal({
             </div>
           </div>
 
+          {/* ३७. आधार संख्या (Aadhaar Number) */}
+          <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
+                ३७. आधार संख्या (Aadhaar Number)
+              </label>
+              <span className="text-[11px] font-mono text-slate-500 font-bold">
+                {aadhaarNumber.length}/12 अंक
+              </span>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={12}
+              value={aadhaarNumber}
+              onChange={(e) => setAadhaarNumber(sanitizeNumeric(e.target.value).slice(0, 12))}
+              placeholder="12 अंकों का आधार नंबर दर्ज करें"
+              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-mono text-sm sm:text-base font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+            />
+          </div>
+
         </div>
 
         {/* Footer Actions */}
@@ -390,6 +481,13 @@ export default function QuickMemberModal({
         </div>
 
       </div>
+
+      {/* Aadhaar QR Scanner Viewfinder Modal */}
+      <AadhaarQRScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }

@@ -223,7 +223,27 @@ export default function CensusProformaView({
                     </div>
                     <div>
                       <span className="font-bold">कुल सदस्य: </span>
-                      <DigitBoxes value={members.length} count={2} />
+                      <DigitBoxes value={household.is_self_enumerated ? (household.total_members || 1) : members.length} count={2} />
+                    </div>
+                    {/* Official SE ID digit boxes (स्ट. गणना आईडी) */}
+                    <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 border border-slate-700 rounded">
+                      <span className="font-bold text-[10px]">स्ट. गणना आईडी: </span>
+                      <span className="inline-flex border border-slate-900 bg-white">
+                        <span className="w-4 h-5 flex items-center justify-center font-black border-r border-slate-900 bg-amber-200 text-[10px]">
+                          P
+                        </span>
+                        {Array.from({ length: 10 }).map((_, i) => {
+                          const digits = (household.se_id || '').replace(/^P/i, '');
+                          return (
+                            <span
+                              key={i}
+                              className="w-3.5 h-5 border-r last:border-r-0 border-slate-900 flex items-center justify-center font-mono font-bold text-[10px]"
+                            >
+                              {digits[i] || ''}
+                            </span>
+                          );
+                        })}
+                      </span>
                     </div>
                     <div className="font-mono text-[10px] bg-slate-100 px-2 py-0.5 border border-slate-300 rounded font-black">
                       SIDE - A (प्र. 1 से 17)
@@ -258,7 +278,27 @@ export default function CensusProformaView({
                     </tr>
                   </thead>
                   <tbody>
-                    {paddedMembers.map((m, idx) => {
+                    {household.is_self_enumerated && members.length === 0 ? (
+                      <tr>
+                        <td colSpan={18} className="p-8 text-center bg-amber-50/70 border-b border-slate-900">
+                          <div className="max-w-lg mx-auto space-y-2">
+                            <span className="inline-block px-3 py-1 bg-amber-200 text-amber-950 font-black rounded-full text-xs uppercase tracking-wide border border-amber-400">
+                              ✓ स्व-गणना प्रपत्र (Self-Enumerated Schedule)
+                            </span>
+                            <h3 className="text-base font-extrabold text-slate-950">
+                              परिवार ने se.census.gov.in पोर्टल पर ऑनलाइन स्व-गणना पूर्ण कर ली है
+                            </h3>
+                            <p className="font-mono font-black text-blue-900 text-sm bg-white p-2 rounded-lg border border-amber-300 inline-block shadow-2xs">
+                              स्ट. गणना आईडी (SE ID): {household.se_id || '—'}
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              मुखिया: <strong>{household.head_name}</strong> • कुल सदस्य: <strong>{household.total_members}</strong> • प्रगणक द्वारा सत्यापन अभिलेखित
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paddedMembers.map((m, idx) => {
                       const rowNum = pageIndex * MEMBERS_PER_SHEET + idx + 1;
                       if (!m) {
                         return (
@@ -351,25 +391,39 @@ export default function CensusProformaView({
 
                           {/* Q.11 Father Details */}
                           <td className="border-r border-slate-700 p-1 text-[10px]">
-                            {m.q11_father_in_hh ? (
+                            {m.q11_father_in_hh && m.q11_father_serial_no ? (
                               <div>
-                                <span className="text-[9px] font-bold text-blue-900">परिवार में</span>
+                                <span className="text-[9px] font-bold text-blue-900">परिवार में क्र.</span>
                                 <DigitBoxes value={m.q11_father_serial_no} count={2} className="block mt-0.5" />
                               </div>
                             ) : (
-                              <span className="truncate block max-w-[80px]">{m.q11_father_name || '—'}</span>
+                              <div>
+                                <span className="truncate block max-w-[80px] font-bold">{m.q11_father_name || '—'}</span>
+                                {m.q11_father_name && (
+                                  <span className="text-[8.5px] text-slate-500 block">
+                                    {m.q11_father_alive ? 'जीवित' : 'दिवंगत'}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </td>
 
                           {/* Q.12 Mother Details */}
                           <td className="border-r border-slate-700 p-1 text-[10px]">
-                            {m.q12_mother_in_hh ? (
+                            {m.q12_mother_in_hh && m.q12_mother_serial_no ? (
                               <div>
-                                <span className="text-[9px] font-bold text-blue-900">परिवार में</span>
+                                <span className="text-[9px] font-bold text-blue-900">परिवार में क्र.</span>
                                 <DigitBoxes value={m.q12_mother_serial_no} count={2} className="block mt-0.5" />
                               </div>
                             ) : (
-                              <span className="truncate block max-w-[80px]">{m.q12_mother_name || '—'}</span>
+                              <div>
+                                <span className="truncate block max-w-[80px] font-bold">{m.q12_mother_name || '—'}</span>
+                                {m.q12_mother_name && (
+                                  <span className="text-[8.5px] text-slate-500 block">
+                                    {m.q12_mother_alive ? 'जीवित' : 'दिवंगत'}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </td>
 
@@ -433,7 +487,7 @@ export default function CensusProformaView({
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
               </div>
@@ -459,12 +513,34 @@ export default function CensusProformaView({
                     आर्थिक गतिविधि, प्रवास, प्रजनन, बैंक व पहचान पत्र विवरण (प्र. 18 से 40)
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-mono text-xs font-black">
-                    परिवार #{household.household_no} | मकान #{household.census_house_no}
+                <div className="flex items-center gap-3">
+                  {/* Official SE ID digit boxes (स्ट. गणना आईडी) */}
+                  <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 border border-slate-700 rounded">
+                    <span className="font-bold text-[10px]">स्ट. गणना आईडी: </span>
+                    <span className="inline-flex border border-slate-900 bg-white">
+                      <span className="w-4 h-5 flex items-center justify-center font-black border-r border-slate-900 bg-amber-200 text-[10px]">
+                        P
+                      </span>
+                      {Array.from({ length: 10 }).map((_, i) => {
+                        const digits = (household.se_id || '').replace(/^P/i, '');
+                        return (
+                          <span
+                            key={i}
+                            className="w-3.5 h-5 border-r last:border-r-0 border-slate-900 flex items-center justify-center font-mono font-bold text-[10px]"
+                          >
+                            {digits[i] || ''}
+                          </span>
+                        );
+                      })}
+                    </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 font-bold">
-                    मुखिया: {household.head_name}
+                  <div className="text-right">
+                    <div className="font-mono text-xs font-black">
+                      भवन #{household.building_no} | मकान #{household.census_house_no} | परिवार #{household.household_no}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-bold">
+                      मुखिया: {household.head_name}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -500,7 +576,27 @@ export default function CensusProformaView({
                     </tr>
                   </thead>
                   <tbody>
-                    {paddedMembers.map((m, idx) => {
+                    {household.is_self_enumerated && members.length === 0 ? (
+                      <tr>
+                        <td colSpan={18} className="p-8 text-center bg-amber-50/70 border-b border-slate-900">
+                          <div className="max-w-lg mx-auto space-y-2">
+                            <span className="inline-block px-3 py-1 bg-amber-200 text-amber-950 font-black rounded-full text-xs uppercase tracking-wide border border-amber-400">
+                              ✓ स्व-गणना प्रपत्र (Self-Enumerated Schedule)
+                            </span>
+                            <h3 className="text-base font-extrabold text-slate-950">
+                              परिवार ने se.census.gov.in पोर्टल पर ऑनलाइन स्व-गणना पूर्ण कर ली है
+                            </h3>
+                            <p className="font-mono font-black text-blue-900 text-sm bg-white p-2 rounded-lg border border-amber-300 inline-block shadow-2xs">
+                              स्ट. गणना आईडी (SE ID): {household.se_id || '—'}
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              मुखिया: <strong>{household.head_name}</strong> • कुल सदस्य: <strong>{household.total_members}</strong> • प्रगणक द्वारा सत्यापन अभिलेखित
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paddedMembers.map((m, idx) => {
                       const rowNum = pageIndex * MEMBERS_PER_SHEET + idx + 1;
                       if (!m) {
                         return (
@@ -683,7 +779,7 @@ export default function CensusProformaView({
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
               </div>

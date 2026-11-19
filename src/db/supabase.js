@@ -225,7 +225,9 @@ export const pushPendingLocalData = async (supabase) => {
       total_members: Number(hh.total_members) || 1,
       head_name: hh.head_name || '',
       status: hh.status || 'completed',
-      remarks: hh.remarks || ''
+      remarks: hh.remarks || '',
+      se_id: hh.se_id || null,
+      is_self_enumerated: !!hh.is_self_enumerated
     };
 
     const { data: remoteHh, error: hhError } = await supabase
@@ -351,6 +353,112 @@ export const pushPendingLocalData = async (supabase) => {
         syncedMemCount++;
       }
     }
+  }
+
+  // ─── SECOND PASS: Sync orphaned pending members whose household is already synced ───
+  // This covers the case where the household was marked 'synced' on a previous attempt
+  // but the member upserts failed silently — those members are still 'pending' locally.
+  try {
+    const allPendingMembers = await db.members.where('sync_status').equals('pending').toArray();
+    for (const m of allPendingMembers) {
+      // Find parent household (must be synced and have a supabase_id)
+      const parentHh = await db.households
+        .where('local_id')
+        .equals(m.household_local_id || '')
+        .first();
+      if (!parentHh || !parentHh.supabase_id) continue; // parent not yet synced — skip
+
+      const supabaseHouseholdId = parentHh.supabase_id;
+      const memberLocalId = m.local_id || `mem_${parentHh.local_id}_${m.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
+
+      const memberPayload = {
+        local_id: memberLocalId,
+        household_id: supabaseHouseholdId,
+        serial_no: Number(m.serial_no),
+        q1_name: m.q1_name || 'अज्ञात',
+        q2_relationship: Number(m.q2_relationship) || 1,
+        q3_gender: Number(m.q3_gender) || 1,
+        q4a_dob: m.q4a_dob || null,
+        q4b_age: Number(m.q4b_age) || 0,
+        q5_marital_status: Number(m.q5_marital_status) || 1,
+        q6_age_at_marriage: m.q6_age_at_marriage ? Number(m.q6_age_at_marriage) : null,
+        q7_spouse_serial_no: m.q7_spouse_serial_no ? String(m.q7_spouse_serial_no) : null,
+        q8_nationality: m.q8_nationality || 'भारत',
+        q9_religion: Number(m.q9_religion) || 1,
+        q9_religion_other: m.q9_religion_other || null,
+        q10a_sc_st: Number(m.q10a_sc_st) || 3,
+        q10b_caste_code: m.q10b_caste_code || null,
+        q10c_caste_name: m.q10c_caste_name || null,
+        q11_father_in_hh: !!m.q11_father_in_hh,
+        q11_father_serial_no: m.q11_father_serial_no ? Number(m.q11_father_serial_no) : null,
+        q11_father_name: m.q11_father_name || null,
+        q11_father_dob: m.q11_father_dob || null,
+        q11_father_birthplace: m.q11_father_birthplace || null,
+        q11_father_alive: m.q11_father_alive !== undefined ? !!m.q11_father_alive : null,
+        q11_father_religion: m.q11_father_religion ? Number(m.q11_father_religion) : null,
+        q12_mother_in_hh: !!m.q12_mother_in_hh,
+        q12_mother_serial_no: m.q12_mother_serial_no ? Number(m.q12_mother_serial_no) : null,
+        q12_mother_name: m.q12_mother_name || null,
+        q12_mother_dob: m.q12_mother_dob || null,
+        q12_mother_birthplace: m.q12_mother_birthplace || null,
+        q12_mother_alive: m.q12_mother_alive !== undefined ? !!m.q12_mother_alive : null,
+        q12_mother_religion: m.q12_mother_religion ? Number(m.q12_mother_religion) : null,
+        q13a_disabled: Number(m.q13a_disabled) || 2,
+        q13b_disability_types: Array.isArray(m.q13b_disability_types) ? m.q13b_disability_types.map(Number) : [],
+        q14a_mother_tongue: m.q14a_mother_tongue || 'हिन्दी',
+        q14b_other_languages: Array.isArray(m.q14b_other_languages) ? m.q14b_other_languages : (m.q14b_other_lang1 ? [m.q14b_other_lang1, m.q14c_other_lang2].filter(Boolean) : []),
+        q15a_literacy: m.q15a_literacy ? Number(m.q15a_literacy) : null,
+        q15b_digital_literate: m.q15b_digital_literate ? Number(m.q15b_digital_literate) : null,
+        q16_education_status: m.q16_education_status ? Number(m.q16_education_status) : null,
+        q17a_highest_education: m.q17a_highest_education !== undefined ? Number(m.q17a_highest_education) : null,
+        q17b_subject: m.q17b_subject ? Number(m.q17b_subject) : null,
+        q18_work_last_year: m.q18_work_last_year ? Number(m.q18_work_last_year) : 4,
+        q19_economic_activity: m.q19_economic_activity ? Number(m.q19_economic_activity) : null,
+        q20_occupation: m.q20_occupation || null,
+        q21_industry: m.q21_industry || null,
+        q22_worker_class: m.q22_worker_class ? Number(m.q22_worker_class) : null,
+        q23_non_economic_activity: m.q23_non_economic_activity ? Number(m.q23_non_economic_activity) : null,
+        q24_seeking_work: m.q24_seeking_work ? Number(m.q24_seeking_work) : null,
+        q25a_travel_distance_km: m.q25a_travel_distance_km ? Number(m.q25a_travel_distance_km) : null,
+        q25b_travel_time_min: m.q25b_travel_time_min ? Number(m.q25b_travel_time_min) : null,
+        q25c_travel_mode: m.q25c_travel_mode !== undefined ? Number(m.q25c_travel_mode) : null,
+        q26_birth_place_type: m.q26_birth_place_type || 'here',
+        q27_last_residence_type: m.q27_last_residence_type || 'here',
+        q27b_rural_urban: m.q27b_rural_urban ? Number(m.q27b_rural_urban) : 1,
+        q28_migration_reason: m.q28_migration_reason ? Number(m.q28_migration_reason) : null,
+        q29_residence_duration_years: m.q29_residence_duration_years ? Number(m.q29_residence_duration_years) : null,
+        q30_permanent_address_same: !!m.q30_permanent_address_same,
+        q30_permanent_address: m.q30_permanent_address || null,
+        q31_children_ever_born_female: Number(m.q31_children_ever_born_female) || 0,
+        q31_children_ever_born_male: Number(m.q31_children_ever_born_male) || 0,
+        q32_children_surviving_female: Number(m.q32_children_surviving_female) || 0,
+        q32_children_surviving_male: Number(m.q32_children_surviving_male) || 0,
+        q33_children_born_last_year_female: Number(m.q33_children_born_last_year_female) || 0,
+        q33_children_born_last_year_male: Number(m.q33_children_born_last_year_male) || 0,
+        q34a_covid_vaccinated: m.q34a_covid_vaccinated ? Number(m.q34a_covid_vaccinated) : null,
+        q34b_covid_vaccine_place: m.q34b_covid_vaccine_place || null,
+        q35_bank_accounts_count: Number(m.q35_bank_accounts_count) || 1,
+        q36_mobile_number: m.q36_mobile_number || null,
+        q37_aadhaar_number: m.q37_aadhaar_number || null,
+        q38_voter_id_epic: m.q38_voter_id_epic || null,
+        q39_passport_number: m.q39_passport_number || null,
+        q40_driving_license: m.q40_driving_license ? Number(m.q40_driving_license) : null
+      };
+
+      const { error: mError2 } = await supabase
+        .from('members')
+        .upsert(memberPayload, { onConflict: 'local_id' });
+
+      if (mError2) {
+        console.error('अनाथ सदस्य अपलोड त्रुटि:', mError2);
+        errors.push(`अनाथ सदस्य ${m.q1_name}: ${mError2.message}`);
+      } else {
+        await db.members.update(m.local_id || memberLocalId, { sync_status: 'synced', local_id: memberLocalId });
+        syncedMemCount++;
+      }
+    }
+  } catch (orphanErr) {
+    console.error('अनाथ सदस्य sync pass त्रुटि:', orphanErr);
   }
 
   return { syncedHhCount, syncedMemCount, errors };

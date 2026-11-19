@@ -58,14 +58,24 @@ CREATE TABLE IF NOT EXISTS households (
     total_members INTEGER NOT NULL DEFAULT 1,
     head_name TEXT,
     
-    -- स्थिति: 'draft' (अपूर्ण) या 'completed' (पूर्ण)
-    status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('draft', 'completed')),
+    -- स्व-गणना विवरण (Self-Enumeration ID)
+    se_id TEXT,
+    is_self_enumerated BOOLEAN DEFAULT FALSE,
+
+    -- स्थिति: 'draft', 'completed', या 'self_enumerated'
+    status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('draft', 'completed', 'self_enumerated')),
     remarks TEXT,
     
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     synced_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrations for households table
+ALTER TABLE households ADD COLUMN IF NOT EXISTS se_id TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS is_self_enumerated BOOLEAN DEFAULT FALSE;
+ALTER TABLE households DROP CONSTRAINT IF EXISTS households_status_check;
+ALTER TABLE households ADD CONSTRAINT households_status_check CHECK (status IN ('draft', 'completed', 'self_enumerated'));
 
 -- 4. Members Table (व्यक्तिगत विवरण - Q.1 से Q.40)
 CREATE TABLE IF NOT EXISTS members (

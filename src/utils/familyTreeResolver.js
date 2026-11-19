@@ -73,7 +73,7 @@ export const resolveFamilyRelationships = (members = []) => {
     if (inferredFatherInHh === undefined || inferredFatherInHh === null) {
       if (rel === 3) {
         // Child of Head (बेटा / बेटी):
-        if (isHeadMale) {
+        if (isHeadMale && (!head.q4b_age || Number(head.q4b_age) >= Number(m.q4b_age || 0) + 12)) {
           inferredFatherInHh = true;
           inferredFatherSNo = headSerialNo;
         } else if (isHeadFemale && headSpouse && Number(headSpouse.q3_gender) === 1) {
@@ -81,7 +81,7 @@ export const resolveFamilyRelationships = (members = []) => {
           inferredFatherSNo = headSpouse.serial_no;
         } else {
           inferredFatherInHh = false;
-          inferredFatherSNo = '';
+          inferredFatherSNo = null;
         }
       } else if (rel === 6) {
         // Grandchild (पोता / पोती): Father is son of Head
@@ -91,27 +91,37 @@ export const resolveFamilyRelationships = (members = []) => {
         } else if (sons.length === 1) {
           inferredFatherInHh = true;
           inferredFatherSNo = sons[0].serial_no;
+        } else {
+          inferredFatherInHh = false;
+          inferredFatherSNo = null;
         }
       } else if (rel === 1 || rel === 13) {
         // Head or Head's Sibling (भाई/बहन): Father MUST be code 12 (माता/पिता) & at least 15 yrs older!
-        if (headFather && Number(headFather.q4b_age) >= Number(m.q4b_age) + 15) {
+        if (headFather && (!m.q4b_age || Number(headFather.q4b_age) >= Number(m.q4b_age) + 15)) {
           inferredFatherInHh = true;
           inferredFatherSNo = headFather.serial_no;
         } else {
           inferredFatherInHh = false;
-          inferredFatherSNo = '';
+          inferredFatherSNo = null;
         }
+      } else {
+        inferredFatherInHh = false;
+        inferredFatherSNo = null;
       }
     }
 
     // Invalidation Guard: Ensure father is logically and biologically valid
     if (inferredFatherSNo) {
       const selectedFather = members.find((f) => f.serial_no === Number(inferredFatherSNo));
+      const childAge = Number(m.q4b_age || 0);
+      const fatherAge = selectedFather ? Number(selectedFather.q4b_age || 0) : 0;
+
       if (!selectedFather ||
           Number(selectedFather.q3_gender) !== 1 ||
-          Number(selectedFather.q4b_age) < Number(m.q4b_age) + 15 ||
+          (childAge > 0 && fatherAge > 0 && fatherAge < childAge + 15) ||
           ((rel === 1 || rel === 13) && Number(selectedFather.q2_relationship) !== 12) ||
-          (rel === 3 && Number(selectedFather.q2_relationship) === 3)) {
+          (rel === 3 && Number(selectedFather.q2_relationship) === 3) ||
+          Number(selectedFather.q2_relationship) === 13) {
         inferredFatherInHh = false;
         inferredFatherSNo = null;
       }
@@ -123,7 +133,7 @@ export const resolveFamilyRelationships = (members = []) => {
     if (inferredMotherInHh === undefined || inferredMotherInHh === null) {
       if (rel === 3) {
         // Child of Head (बेटा / बेटी):
-        if (isHeadFemale) {
+        if (isHeadFemale && (!head.q4b_age || Number(head.q4b_age) >= Number(m.q4b_age || 0) + 12)) {
           inferredMotherInHh = true;
           inferredMotherSNo = headSerialNo;
         } else if (isHeadMale && headSpouse && Number(headSpouse.q3_gender) === 2) {
@@ -131,46 +141,61 @@ export const resolveFamilyRelationships = (members = []) => {
           inferredMotherSNo = headSpouse.serial_no;
         } else {
           inferredMotherInHh = false;
-          inferredMotherSNo = '';
+          inferredMotherSNo = null;
         }
       } else if (rel === 6) {
         // Grandchild (पोता / पोती): Mother is daughter-in-law (बहू)
         if (daughtersInLaw.length === 1) {
           inferredMotherInHh = true;
           inferredMotherSNo = daughtersInLaw[0].serial_no;
+        } else {
+          inferredMotherInHh = false;
+          inferredMotherSNo = null;
         }
       } else if (rel === 1 || rel === 13) {
         // Head or Head's Sibling (भाई/बहन): Mother MUST be code 12 (माता/पिता) & at least 15 yrs older!
-        if (headMother && Number(headMother.q4b_age) >= Number(m.q4b_age) + 15) {
+        if (headMother && (!m.q4b_age || Number(headMother.q4b_age) >= Number(m.q4b_age) + 15)) {
           inferredMotherInHh = true;
           inferredMotherSNo = headMother.serial_no;
         } else {
           inferredMotherInHh = false;
-          inferredMotherSNo = '';
+          inferredMotherSNo = null;
         }
+      } else {
+        inferredMotherInHh = false;
+        inferredMotherSNo = null;
       }
     }
 
     // Invalidation Guard: Ensure mother is logically and biologically valid
     if (inferredMotherSNo) {
       const selectedMother = members.find((mot) => mot.serial_no === Number(inferredMotherSNo));
+      const childAge = Number(m.q4b_age || 0);
+      const motherAge = selectedMother ? Number(selectedMother.q4b_age || 0) : 0;
+
       if (!selectedMother ||
           Number(selectedMother.q3_gender) !== 2 ||
-          Number(selectedMother.q4b_age) < Number(m.q4b_age) + 15 ||
+          (childAge > 0 && motherAge > 0 && motherAge < childAge + 15) ||
           ((rel === 1 || rel === 13) && Number(selectedMother.q2_relationship) !== 12) ||
-          (rel === 3 && Number(selectedMother.q2_relationship) === 3)) {
+          (rel === 3 && Number(selectedMother.q2_relationship) === 3) ||
+          Number(selectedMother.q2_relationship) === 13) {
         inferredMotherInHh = false;
         inferredMotherSNo = null;
       }
     }
 
+    const finalFatherInHh = inferredFatherInHh !== undefined ? !!inferredFatherInHh : !!m.q11_father_in_hh;
+    const finalFatherSNo = finalFatherInHh && inferredFatherSNo ? Number(inferredFatherSNo) : null;
+    const finalMotherInHh = inferredMotherInHh !== undefined ? !!inferredMotherInHh : !!m.q12_mother_in_hh;
+    const finalMotherSNo = finalMotherInHh && inferredMotherSNo ? Number(inferredMotherSNo) : null;
+
     return {
       ...m,
       q7_spouse_serial_no: inferredSpouse,
-      q11_father_in_hh: inferredFatherInHh !== undefined ? inferredFatherInHh : !!m.q11_father_in_hh,
-      q11_father_serial_no: inferredFatherSNo ? Number(inferredFatherSNo) : (m.q11_father_serial_no || null),
-      q12_mother_in_hh: inferredMotherInHh !== undefined ? inferredMotherInHh : !!m.q12_mother_in_hh,
-      q12_mother_serial_no: inferredMotherSNo ? Number(inferredMotherSNo) : (m.q12_mother_serial_no || null)
+      q11_father_in_hh: finalFatherInHh,
+      q11_father_serial_no: finalFatherSNo,
+      q12_mother_in_hh: finalMotherInHh,
+      q12_mother_serial_no: finalMotherSNo
     };
   });
 };
@@ -215,22 +240,30 @@ export const getPotentialFathers = (member, allMembers = []) => {
     const candidateAge = Number(candidate.q4b_age || 0);
     if (candidateAge < 15) return false;
     if (currentAge > 0 && candidateAge < currentAge + 15) return false;
+    // Even if currentAge is unknown, father must be older than candidate
+    if (currentAge > 0 && candidateAge <= currentAge) return false;
 
     const candRel = Number(candidate.q2_relationship || 0);
+    const candMarital = Number(candidate.q5_marital_status || 1);
+
+    // Unmarried younger brothers (13) or sons (3) can NEVER be father of Head or adult members
+    if ([3, 4, 6, 7, 13].includes(candRel)) {
+      if (currentRel === 1 || currentRel === 13) return false;
+    }
 
     // 4. Head of household (मुखिया - 01): Father can ONLY be someone with code 12 (माता/पिता)
     if (currentRel === 1) {
-      return candRel === 12;
+      return candRel === 12 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 30);
     }
 
     // 5. Brother/Sister of Head (भाई/बहन - 13): Father is Head's father (Code 12)
     if (currentRel === 13) {
-      return candRel === 12;
+      return candRel === 12 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 30);
     }
 
     // 6. Spouse of Head (पति/पत्नी - 02): Head or Head's children/siblings cannot be father
     if (currentRel === 2) {
-      return candRel === 30; // Only elderly other relative
+      return candRel === 30 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 35);
     }
 
     // 7. Child of Head (बेटा/बेटी - 03): Father is male Head (01) or Head's husband (02)
@@ -241,7 +274,7 @@ export const getPotentialFathers = (member, allMembers = []) => {
 
     // 8. Grandchild of Head (पोता/पोती - 06): Father is son of Head (03)
     if (currentRel === 6) {
-      return candRel === 3 && Number(candidate.q3_gender) === 1;
+      return candRel === 3 && Number(candidate.q3_gender) === 1 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 20);
     }
 
     // 9. Daughter-in-law (बहू - 04): Biological father cannot be in-laws
@@ -277,22 +310,28 @@ export const getPotentialMothers = (member, allMembers = []) => {
     const candidateAge = Number(candidate.q4b_age || 0);
     if (candidateAge < 15) return false;
     if (currentAge > 0 && candidateAge < currentAge + 15) return false;
+    if (currentAge > 0 && candidateAge <= currentAge) return false;
 
     const candRel = Number(candidate.q2_relationship || 0);
 
+    // Younger sisters (13) or daughters (3) can NEVER be mother of Head or adult members
+    if ([3, 4, 6, 7, 13].includes(candRel)) {
+      if (currentRel === 1 || currentRel === 13) return false;
+    }
+
     // 4. Head of household (मुखिया - 01): Mother can ONLY be someone with code 12 (माता/पिता)
     if (currentRel === 1) {
-      return candRel === 12;
+      return candRel === 12 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 30);
     }
 
     // 5. Brother/Sister of Head (भाई/बहन - 13): Mother is Head's mother (Code 12)
     if (currentRel === 13) {
-      return candRel === 12;
+      return candRel === 12 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 30);
     }
 
     // 6. Spouse of Head (पति/पत्नी - 02)
     if (currentRel === 2) {
-      return candRel === 30;
+      return candRel === 30 && candidateAge >= (currentAge > 0 ? currentAge + 15 : 35);
     }
 
     // 7. Child of Head (बेटा/बेटी - 03): Mother is female Head (01) or Head's wife (02)
@@ -303,7 +342,7 @@ export const getPotentialMothers = (member, allMembers = []) => {
 
     // 8. Grandchild of Head (पोता/पोती - 06): Mother is daughter-in-law (04) or daughter (03)
     if (currentRel === 6) {
-      return candRel === 4 || (candRel === 3 && Number(candidate.q3_gender) === 2);
+      return (candRel === 4 || (candRel === 3 && Number(candidate.q3_gender) === 2)) && candidateAge >= (currentAge > 0 ? currentAge + 15 : 20);
     }
 
     // 9. Daughter-in-law (बहू - 04)

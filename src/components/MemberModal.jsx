@@ -11,8 +11,10 @@ import {
   Lock,
   Sparkles,
   CheckCircle2,
-  Calendar
+  Calendar,
+  QrCode
 } from 'lucide-react';
+import AadhaarQRScanner from './AadhaarQRScanner';
 import { 
   sanitizeName, 
   sanitizeNumeric, 
@@ -57,6 +59,7 @@ export default function MemberModal({
   const [errors, setErrors] = useState({});
 
   const [isAgeLocked, setIsAgeLocked] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const initialData = {
     local_id: existingMember?.local_id || ('mem_temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
@@ -268,6 +271,39 @@ export default function MemberModal({
     }
   };
 
+  // Aadhaar QR scan result handler
+  const handleScanSuccess = (parsed) => {
+    if (!parsed) return;
+    setFormData((prev) => {
+      const updated = { ...prev };
+      if (parsed.name) updated.q1_name = parsed.name;
+      if (parsed.gender) updated.q3_gender = parsed.gender;
+      if (parsed.dob) {
+        updated.q4a_dob = parsed.dob;
+        if (parsed.age !== null && parsed.age !== undefined) {
+          updated.q4b_age = parsed.age;
+          setIsAgeLocked(true);
+        }
+      } else if (parsed.age !== null && parsed.age !== undefined) {
+        updated.q4b_age = parsed.age;
+      }
+      if (parsed.aadhaarNumber && parsed.aadhaarNumber.length === 12 && !parsed.aadhaarNumber.includes('X')) {
+        updated.q37_aadhaar_number = parsed.aadhaarNumber;
+      }
+      if (parsed.address) {
+        updated.q30_permanent_address = parsed.address;
+        updated.q30_permanent_address_same = false;
+      }
+      return updated;
+    });
+    setErrors((prev) => ({
+      ...prev,
+      q1_name: undefined,
+      q4b_age: undefined,
+      q3_gender: undefined
+    }));
+  };
+
   const handleMobileChange = (val) => {
     const clean = sanitizeNumeric(val).slice(0, 10);
     setFormData((prev) => ({ ...prev, q36_mobile_number: clean }));
@@ -461,6 +497,27 @@ export default function MemberModal({
                     {/* TAB 0: जनसांख्यिकी (प्र. 1 से 9) */}
           {activeTab === 0 && (
             <div className="space-y-4">
+
+              {/* Aadhaar QR Scanner Fast Action Banner */}
+              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-100 p-3 rounded-2xl border border-blue-200 flex items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-9 h-9 rounded-xl bg-[#0B3B60] text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
+                    <QrCode className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs sm:text-sm font-extrabold text-[#0B3B60] leading-tight">आधार कार्ड QR स्कैनर</p>
+                    <p className="text-[11px] text-slate-600">नाम, लिंग, जन्म तिथि, आयु व पता स्वतः भरें</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-[#0B3B60] hover:bg-[#072F5F] text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                >
+                  <span>📷 QR स्कैन करें</span>
+                </button>
+              </div>
+
               {/* Q.1 व्यक्ति का नाम */}
               <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -617,6 +674,30 @@ export default function MemberModal({
                     <span>{errors.q4b_age}</span>
                   </p>
                 )}
+              </div>
+
+              {/* Q.37 आधार संख्या (Aadhaar Number - 12 अंक त्वरित प्रविष्टि) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 37 आधार संख्या (Aadhaar Number - 12 अंक)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500 font-bold">
+                    {(formData.q37_aadhaar_number || '').length}/12 अंक
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={formData.q37_aadhaar_number || ''}
+                  onChange={(e) => setFormData({ ...formData, q37_aadhaar_number: sanitizeNumeric(e.target.value).slice(0, 12) })}
+                  placeholder="12 अंकों का आधार नंबर दर्ज करें"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base font-mono font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                />
+                <span className="text-[11px] text-slate-500 block">
+                  (संख्यात्मक कीबोर्ड से 12 अंक टाइप करें अथवा शीर्ष पर QR स्कैन करें)
+                </span>
               </div>
 
               {/* Q.5 वैवाहिक स्थिति */}
@@ -2546,6 +2627,13 @@ export default function MemberModal({
         </div>
 
       </div>
+
+      {/* Aadhaar QR Scanner Viewfinder Modal */}
+      <AadhaarQRScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }

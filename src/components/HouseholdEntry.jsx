@@ -20,7 +20,8 @@ import {
   Sparkles,
   Heart,
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Check
 } from 'lucide-react';
 import { db } from '../db/db';
 import { 
@@ -60,6 +61,12 @@ export default function HouseholdEntry({
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState('completed');
 
+  // Self-Enumeration (SE ID) State
+  const [isSelfEnumerated, setIsSelfEnumerated] = useState(false);
+  const [seId, setSeId] = useState('');
+  const [seHeadName, setSeHeadName] = useState('');
+  const [seTotalMembers, setSeTotalMembers] = useState('1');
+
   // Household-Level Shared Master Values
   const [hhReligion, setHhReligion] = useState(1); // 1 = हिन्दू
   const [hhSocialCategory, setHhSocialCategory] = useState(3); // 3 = सामान्य / अन्य
@@ -91,6 +98,11 @@ export default function HouseholdEntry({
       setRemarks(editingHousehold.remarks || '');
       setStatus(editingHousehold.status || 'completed');
       
+      setIsSelfEnumerated(!!editingHousehold.is_self_enumerated);
+      setSeId(editingHousehold.se_id || '');
+      setSeHeadName(editingHousehold.head_name || '');
+      setSeTotalMembers(String(editingHousehold.total_members || 1));
+
       const resolved = resolveFamilyRelationships(editingMembers || []);
       setMembers(resolved);
 
@@ -104,6 +116,10 @@ export default function HouseholdEntry({
       setFeedbackMsg(`संशोधन हेतु परिवार क्रमांक ${editingHousehold.household_no} लोड किया गया।`);
     } else if (settings) {
       setCurrentLocalId(null);
+      setIsSelfEnumerated(false);
+      setSeId('');
+      setSeHeadName('');
+      setSeTotalMembers('1');
       if (settings.last_building_no) setBuildingNo(settings.last_building_no);
       if (settings.last_census_house_no) setCensusHouseNo(settings.last_census_house_no);
       if (settings.last_household_no) setHouseholdNo(settings.last_household_no);
@@ -251,6 +267,95 @@ export default function HouseholdEntry({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Direct Save for Self-Enumerated Household (No member roster needed)
+  const handleSaveSelfEnumeratedHousehold = async () => {
+    setFormError('');
+
+    const cleanBuilding = sanitizeAlphanumeric(buildingNo);
+    const cleanHouse = sanitizeAlphanumeric(censusHouseNo);
+    const cleanHousehold = sanitizeAlphanumeric(householdNo);
+
+    if (!cleanBuilding || !cleanHouse || !cleanHousehold) {
+      setFormError('भवन, जनगणना मकान एवं परिवार संख्या अनिवार्य हैं।');
+      return;
+    }
+
+    let cleanSe = sanitizeAlphanumeric(seId).toUpperCase();
+    if (!cleanSe) {
+      setFormError('कृपया स्व-गणना आईडी (SE ID) दर्ज करें।');
+      return;
+    }
+    if (!cleanSe.startsWith('P')) {
+      cleanSe = 'P' + cleanSe;
+    }
+
+    const householdLocalId = currentLocalId || ('hh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+    const numMembers = Math.max(1, parseInt(seTotalMembers, 10) || 1);
+
+    const householdRecord = {
+      local_id: householdLocalId,
+      enumerator_id: settings?.enumerator_id || 'ENUM-001',
+      state_name: settings?.state_name || 'उत्तर प्रदेश (Uttar Pradesh)',
+      district_name: settings?.district_name || 'मथुरा (Mathura)',
+      tehsil_block: settings?.tehsil_block || 'मथुरा (Mathura)',
+      ward_village_name: settings?.ward_village_name || 'अज्ञात ग्राम',
+      enumeration_block_no: settings?.enumeration_block_no || '001',
+      village_section: (editingHousehold && editingHousehold.village_section) ? editingHousehold.village_section : activeSection,
+      building_no: cleanBuilding,
+      census_house_no: cleanHouse,
+      household_no: cleanHousehold,
+      household_type: Number(householdType),
+      total_members: numMembers,
+      head_name: seHeadName.trim() || 'स्व-गणना परिवार (Self-Enumerated)',
+      status: 'self_enumerated',
+      is_self_enumerated: true,
+      se_id: cleanSe,
+      remarks: remarks.trim() ? `SE ID: ${cleanSe} | ${remarks.trim()}` : `SE ID: ${cleanSe}`,
+      sync_status: 'pending',
+      created_at: editingHousehold ? editingHousehold.created_at : new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    await db.households.put(householdRecord);
+
+    // If editing and previous members existed, clear them
+    if (currentLocalId) {
+      await db.members.where('household_local_id').equals(currentLocalId).delete();
+    }
+
+    // Auto-advance
+    const nextBuildingNum = pad3(parseInt(cleanBuilding, 10) + 1);
+    const nextHouseNum = pad3(parseInt(cleanHouse, 10) + 1);
+    const nextHhNum = '001';
+
+    setBuildingNo(nextBuildingNum);
+    setCensusHouseNo(nextHouseNum);
+    setHouseholdNo(nextHhNum);
+
+    await db.settings.update('active_settings', {
+      last_building_no: nextBuildingNum,
+      last_census_house_no: nextHouseNum,
+      last_household_no: nextHhNum
+    });
+
+    setMembers([]);
+    setRemarks('');
+    setSeId('');
+    setSeHeadName('');
+    setIsSelfEnumerated(false);
+    setCurrentLocalId(null);
+    setEntryStep(1);
+
+    setFeedbackMsg(`स्व-गणना परिवार (SE ID: ${cleanSe}) सफलतापूर्वक सुरक्षित हुआ।`);
+    setTimeout(() => setFeedbackMsg(''), 5500);
+
+    if (navigator.onLine) {
+      syncPendingData().catch((err) => console.warn('Sync notice:', err));
+    }
+
+    if (onHouseholdSaved) onHouseholdSaved();
+  };
+
   // Final Complete Save
   const handleSaveHousehold = async () => {
     setFormError('');
@@ -290,6 +395,8 @@ export default function HouseholdEntry({
       total_members: members.length,
       head_name: head ? head.q1_name : '',
       status: status,
+      is_self_enumerated: false,
+      se_id: seId ? seId.toUpperCase() : null,
       remarks: sanitizeText(remarks),
       sync_status: 'pending',
       created_at: editingHousehold ? editingHousehold.created_at : new Date().toISOString(),
@@ -492,6 +599,7 @@ export default function HouseholdEntry({
                   </button>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={buildingNo}
                     onChange={(e) => handleBuildingChange(e.target.value)}
                     className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
@@ -523,6 +631,7 @@ export default function HouseholdEntry({
                   </button>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={censusHouseNo}
                     onChange={(e) => handleCensusHouseChange(e.target.value)}
                     className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
@@ -565,6 +674,7 @@ export default function HouseholdEntry({
                   </button>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={householdNo}
                     onChange={(e) => setHouseholdNo(sanitizeAlphanumeric(e.target.value))}
                     className="w-full text-center font-black text-base sm:text-lg text-[#0B3B60] py-2 focus:outline-none"
@@ -598,6 +708,109 @@ export default function HouseholdEntry({
                 (भवन/मकान बदलते ही परिवार संख्या स्वतः 001 हो जाएगी)
               </span>
             </div>
+          </div>
+
+          {/* स्व-गणना आईडी (SE ID) Fast Entry Card */}
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50/70 p-3 sm:p-3.5 rounded-xl border border-amber-300/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <span className="text-xs sm:text-sm font-extrabold text-amber-950 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span>क्या परिवार के पास स्व-गणना आईडी (SE ID) है?</span>
+                </span>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  यदि परिवार ने पोर्टल (se.census.gov.in) पर स्व-गणना की है, तो अलग से 40 प्रश्नों की प्रविष्टि नहीं करनी होगी।
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setIsSelfEnumerated(false)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    !isSelfEnumerated
+                      ? 'bg-[#0B3B60] text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  नहीं (सामान्य गणना)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSelfEnumerated(true)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    isSelfEnumerated
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  हाँ (SE ID प्रविष्टि)
+                </button>
+              </div>
+            </div>
+
+            {isSelfEnumerated && (
+              <div className="pt-2 border-t border-amber-200/80 space-y-3 animate-fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-black text-amber-950">
+                      स्व-गणना आईडी (SE ID) <span className="text-red-600">*</span>
+                    </label>
+                    <div className="flex items-center border-2 border-amber-500 rounded-xl overflow-hidden bg-white shadow-xs">
+                      <span className="w-10 h-11 bg-amber-100 font-mono font-black text-amber-950 flex items-center justify-center border-r border-amber-300 text-base">
+                        P
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={12}
+                        value={seId.startsWith('P') ? seId.slice(1) : seId}
+                        onChange={(e) => setSeId('P' + sanitizeAlphanumeric(e.target.value).replace(/^P/i, ''))}
+                        placeholder="10 या 11 अंकों की आईडी"
+                        className="w-full px-3 py-2 font-mono font-black text-base text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <span className="text-[10px] text-amber-900 block font-medium">पोर्टल SMS / रसीद से 10-11 अंक दर्ज करें</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-amber-950">
+                      परिवार के मुखिया का नाम (वैकल्पिक)
+                    </label>
+                    <input
+                      type="text"
+                      value={seHeadName}
+                      onChange={(e) => setSeHeadName(sanitizeText(e.target.value))}
+                      placeholder="उदा. रमेश कुमार"
+                      className="w-full px-3 py-2.5 border border-amber-300 rounded-xl font-bold text-sm text-slate-900 bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between flex-wrap gap-2 bg-amber-100/70 p-2.5 rounded-xl border border-amber-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-amber-950">परिवार में कुल सदस्य:</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={2}
+                      value={seTotalMembers}
+                      onChange={(e) => setSeTotalMembers(sanitizeNumeric(e.target.value))}
+                      className="w-14 text-center font-black text-sm py-1 border border-amber-400 rounded-lg bg-white"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSelfEnumeratedHousehold}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>✓ स्व-गणना परिवार सुरक्षित करें</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* भाग 2: परिवार के सदस्यों की सूची (ROSTER) */}
@@ -687,12 +900,12 @@ export default function HouseholdEntry({
                               • पति/पत्नी: {getMemberNameBySerial(m.q7_spouse_serial_no)}
                             </span>
                           )}
-                          {m.q11_father_serial_no && (
+                          {m.q11_father_in_hh && m.q11_father_serial_no && (
                             <span className="text-slate-700">
                               • पिता: {getMemberNameBySerial(m.q11_father_serial_no)}
                             </span>
                           )}
-                          {m.q12_mother_serial_no && (
+                          {m.q12_mother_in_hh && m.q12_mother_serial_no && (
                             <span className="text-slate-700">
                               • माता: {getMemberNameBySerial(m.q12_mother_serial_no)}
                             </span>

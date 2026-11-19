@@ -51,6 +51,8 @@ export const exportAllDataToExcel = async () => {
     'परिवार संख्या': h.household_no,
     'मुखिया का नाम': h.head_name || '',
     'कुल सदस्य': h.total_members,
+    'स्व-गणना आईडी (SE ID)': h.se_id || '—',
+    'स्व-गणना स्थिति': h.is_self_enumerated ? 'स्व-गणना' : 'सामान्य गणना',
     'परिवार का प्रकार': h.household_type === 1 ? 'सामान्य' : h.household_type === 2 ? 'संस्थागत' : 'बेघर',
     'राज्य': h.state_name,
     'जिला': h.district_name,
