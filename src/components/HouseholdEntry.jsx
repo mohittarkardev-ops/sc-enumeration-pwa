@@ -480,12 +480,12 @@ export default function HouseholdEntry({
   };
 
   return (
-    <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-28 font-['Hind'] text-sm">
+    <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-28 text-sm">
       
       {/* Editing Notification Banner */}
       {currentLocalId && (
-        <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 sm:p-3.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-bold shadow-sm">
-          <span>संशोधन मोड: परिवार क्रमांक #{householdNo} का प्रपत्र संपादित किया जा रहा है।</span>
+        <div className="bg-amber-50 border border-amber-300 text-amber-950 p-3 sm:p-3.5 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold shadow-xs">
+          <span>संशोधन मोड: परिवार क्रमांक <strong className="font-mono">#{householdNo}</strong> का प्रपत्र संपादित किया जा रहा है।</span>
           <button
             type="button"
             onClick={onCancelEditing}
@@ -498,31 +498,31 @@ export default function HouseholdEntry({
       )}
 
       {/* 2-Step Progress Navigation Header */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2">
+      <div className="bg-white/90 backdrop-blur-xs p-1.5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => setEntryStep(1)}
-          className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
             entryStep === 1
-              ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm font-extrabold'
+              : 'bg-transparent text-slate-600 border-transparent hover:bg-slate-100'
           }`}
         >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-black">1</span>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black font-english ${entryStep === 1 ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'}`}>1</span>
           <span>चरण 1: सदस्य तालिका ({members.length})</span>
         </button>
 
         <button
           type="button"
           onClick={handleProceedToStep2}
-          className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 border ${
             entryStep === 2
-              ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm font-extrabold'
+              : 'bg-transparent text-slate-600 border-transparent hover:bg-slate-100'
           }`}
         >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-black">2</span>
-          <span>चरण 2: पारिवारिक संबंध व सारांश</span>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black font-english ${entryStep === 2 ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'}`}>2</span>
+          <span>चरण 2: संबंध व सारांश</span>
         </button>
       </div>
 
@@ -570,7 +570,7 @@ export default function HouseholdEntry({
       {entryStep === 1 && (
         <div className="space-y-3.5">
           {/* भाग 1: भवन, मकान एवं परिवार क्रमांक */}
-          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
                 <Home className="w-4 h-4 text-[#0B3B60]" />
@@ -588,7 +588,7 @@ export default function HouseholdEntry({
                 <label className="block text-xs sm:text-sm font-bold text-slate-800 text-center">
                   भवन संख्या <span className="text-red-600">*</span>
                 </label>
-                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-xs focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60] transition-all">
                   <button
                     type="button"
                     onClick={() => adjustBuilding(-1)}
@@ -602,7 +602,7 @@ export default function HouseholdEntry({
                     inputMode="numeric"
                     value={buildingNo}
                     onChange={(e) => handleBuildingChange(e.target.value)}
-                    className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
+                    className="w-full text-center font-mono font-black text-base sm:text-lg text-slate-900 py-2 focus:outline-none tracking-wider"
                   />
                   <button
                     type="button"
@@ -620,7 +620,7 @@ export default function HouseholdEntry({
                 <label className="block text-xs sm:text-sm font-bold text-slate-800 text-center">
                   मकान संख्या <span className="text-red-600">*</span>
                 </label>
-                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-xs focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60] transition-all">
                   <button
                     type="button"
                     onClick={() => adjustHouse(-1)}
@@ -634,7 +634,7 @@ export default function HouseholdEntry({
                     inputMode="numeric"
                     value={censusHouseNo}
                     onChange={(e) => handleCensusHouseChange(e.target.value)}
-                    className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
+                    className="w-full text-center font-mono font-black text-base sm:text-lg text-slate-900 py-2 focus:outline-none tracking-wider"
                   />
                   <button
                     type="button"
@@ -648,7 +648,7 @@ export default function HouseholdEntry({
               </div>
 
               {/* 3. परिवार संख्या */}
-              <div className="col-span-2 sm:col-span-1 space-y-1 bg-blue-50/50 p-2 sm:p-0 rounded-xl border sm:border-0 border-blue-200/80">
+              <div className="col-span-2 sm:col-span-1 space-y-1 bg-blue-50/60 p-2 sm:p-0 rounded-xl border sm:border-0 border-blue-200/80">
                 <div className="flex items-center justify-between sm:justify-center">
                   <label className="block text-xs sm:text-sm font-bold text-[#0B3B60] text-center">
                     परिवार संख्या <span className="text-red-600">*</span>

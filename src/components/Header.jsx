@@ -148,7 +148,7 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-30 shadow-md font-['Hind']">
+    <header className="sticky top-0 z-30 shadow-md">
       {/* 1. Official National Tricolor Accent Bar */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808]" />
 
@@ -158,19 +158,20 @@ export default function Header({
           
           {/* Left: State Emblem + Official Department Branding */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="p-1 rounded-xl bg-white/10 border border-white/15 shrink-0 shadow-sm flex items-center justify-center">
+            <div className="p-1 rounded-xl bg-white/10 border border-white/20 shrink-0 shadow-xs flex items-center justify-center ring-1 ring-white/10">
               <EmblemOfIndia className="w-6 h-8 sm:w-7 sm:h-9 text-amber-300" />
             </div>
 
             <div className="space-y-0.5">
-              <div className="text-[10px] sm:text-xs text-slate-200 tracking-wider uppercase font-semibold leading-none">
-                भारत सरकार • Government of India
+              <div className="text-[10px] sm:text-xs text-sky-200 tracking-wider uppercase font-semibold leading-none">
+                भारत सरकार • <span className="font-english font-bold">Government of India</span>
               </div>
               <div className="text-[9px] sm:text-[10px] text-slate-300 leading-tight line-clamp-1">
                 गृह मंत्रालय | महारजिस्ट्रार एवं जनगणना आयुक्त कार्यालय
               </div>
-              <h1 className="text-sm sm:text-base font-black tracking-tight text-white leading-tight">
-                जनगणना प्रगणक प्रणाली (Census PE)
+              <h1 className="text-sm sm:text-base font-black tracking-tight text-white leading-tight flex items-center gap-1.5">
+                <span>जनगणना प्रगणक प्रणाली</span>
+                <span className="font-english text-xs sm:text-sm font-bold text-amber-300 bg-white/10 px-1.5 py-0.2 rounded border border-white/15">PE</span>
               </h1>
             </div>
           </div>
@@ -185,17 +186,17 @@ export default function Header({
             <button
               onClick={exportAllDataToExcel}
               title="डेटा Excel में एक्सपोर्ट करें"
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 shadow-sm min-h-[38px]"
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[38px]"
             >
               <Download className="w-4 h-4 text-amber-300" />
-              <span className="hidden sm:inline">Excel</span>
+              <span className="hidden sm:inline font-english">Excel</span>
             </button>
 
             {/* Settings */}
             <button
               onClick={onOpenSettings}
               title="प्रशासनिक विन्यास एवं सेटिंग्स"
-              className="p-2 rounded-xl bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white transition-all active:scale-95 shadow-sm min-h-[38px] min-w-[38px] flex items-center justify-center"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white transition-all active:scale-95 shadow-xs min-h-[38px] min-w-[38px] flex items-center justify-center"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -205,7 +206,7 @@ export default function Header({
               <button
                 onClick={onLockApp}
                 title="प्रणाली तुरंत लॉक करें (Lock App)"
-                className="p-2 rounded-xl bg-[#134D7E] hover:bg-rose-900/80 border border-white/20 text-white transition-all active:scale-95 shadow-sm min-h-[38px] min-w-[38px] flex items-center justify-center"
+                className="p-2 rounded-xl bg-white/10 hover:bg-rose-900/80 border border-white/20 text-white transition-all active:scale-95 shadow-xs min-h-[38px] min-w-[38px] flex items-center justify-center"
               >
                 <Lock className="w-4 h-4 text-amber-300" />
               </button>
@@ -214,7 +215,7 @@ export default function Header({
             {/* View Mode Switcher */}
             <button
               onClick={() => onViewChange(activeView === 'form' ? 'list' : 'form')}
-              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[38px]"
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-900 text-xs sm:text-sm font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-xs min-h-[38px]"
             >
               {activeView === 'form' ? (
                 <>
@@ -233,7 +234,7 @@ export default function Header({
             <button
               onClick={onOpenPanjika}
               title="आधिकारिक परिवार पंजिका प्रपत्र (/panjika)"
-              className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[38px] bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500"
+              className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-xs min-h-[38px] bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50"
             >
               <BookOpen className="w-4 h-4 text-amber-300" />
               <span>पंजिका</span>

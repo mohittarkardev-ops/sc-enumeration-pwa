@@ -3,30 +3,36 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --font-ui: 'Inter', 'Hind', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-hindi: 'Hind', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
   html {
     font-size: 16px;
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-  }
-
-  * {
-    font-family: 'Hind', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
   }
 
   body {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    font-family: 'Hind', sans-serif;
+    font-family: var(--font-ui);
     overscroll-behavior-y: none;
-    background-color: #f1f5f9;
+    background-color: #f8fafc;
+    color: #0f172a;
     font-size: 15px;
     line-height: 1.5;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(11, 59, 96, 0.05), transparent);
+    background-attachment: fixed;
   }
 
-  /* Improve Hindi font rendering, spacing and legibility */
+  /* English letters and numerals use Inter; Devanagari Hindi seamlessly renders in Hind */
   input, select, textarea, button {
-    font-family: 'Hind', sans-serif;
+    font-family: var(--font-ui);
   }
 
   /* Prevent unwanted auto-zoom on mobile devices when focusing inputs */
@@ -53,4 +59,16 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Modern subtle card styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Refined government header glow */
+.masthead-glow {
+  background: linear-gradient(180deg, rgba(11, 59, 96, 1) 0%, rgba(7, 47, 95, 1) 100%);
 }

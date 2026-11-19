@@ -171,7 +171,7 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
   };
 
   return (
-    <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-24 font-['Hind'] text-sm">
+    <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-24 text-sm">
       
       {/* Sync feedback notification */}
       {pullMsg && (

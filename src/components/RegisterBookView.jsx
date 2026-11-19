@@ -771,7 +771,7 @@ export default function RegisterBookView({ settings, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-200 font-['Hind'] text-slate-900 select-none">
+    <div className="min-h-screen bg-slate-200 text-slate-900 select-none">
       {/* ── DEDICATED STANDALONE PANJIKA TOP BAR (Hidden during Print) ── */}
       <header className="sticky top-0 z-40 bg-[#0B3B60] text-white shadow-xl print:hidden border-b-2 border-amber-400">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">

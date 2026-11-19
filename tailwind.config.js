@@ -7,8 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Hind', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        hind: ['Hind', 'sans-serif'],
+        sans: ['Inter', 'Hind', 'system-ui', '-apple-system', 'sans-serif'],
+        hindi: ['Hind', 'sans-serif'],
+        english: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       colors: {
         census: {

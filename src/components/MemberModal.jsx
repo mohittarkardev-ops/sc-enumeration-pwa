@@ -422,7 +422,7 @@ export default function MemberModal({
   const progressPercent = Math.round(((activeTab + 1) / tabs.length) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 overflow-hidden font-['Hind']">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 backdrop-blur-xs overflow-hidden">
       <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-xl h-full sm:h-[94vh] shadow-2xl flex flex-col border-0 sm:border border-slate-200 overflow-hidden">
         
         {/* Official Header with Refined Padding */}

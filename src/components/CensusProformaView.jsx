@@ -77,7 +77,7 @@ export default function CensusProformaView({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-xs flex flex-col font-['Hind'] overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-xs flex flex-col overflow-hidden">
       {/* Top Action Bar (Hidden in Print) */}
       <div className="bg-[#0B3B60] text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-md print:hidden">
         <div className="flex items-center gap-2.5">

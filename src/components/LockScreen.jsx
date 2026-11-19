@@ -63,7 +63,7 @@ export default function LockScreen({ onUnlock }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-between font-['Hind'] select-none relative overflow-x-hidden">
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-between select-none relative overflow-x-hidden">
       
       {/* 1. National Tricolor Top Accent */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] shrink-0" />
