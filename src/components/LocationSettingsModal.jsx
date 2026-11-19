@@ -16,7 +16,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { db } from '../db/db';
-import { getSupabaseConfig, setSupabaseConfig, checkDatabaseConnection } from '../db/supabase';
+import { getSupabaseConfig, setSupabaseConfig, checkDatabaseConnection, syncPendingData } from '../db/supabase';
 import { INDIAN_STATES, UP_DISTRICTS, MATHURA_BLOCKS } from '../constants/indiaLocations';
 import { sanitizeText, sanitizeAlphanumeric } from '../utils/validation';
 
@@ -151,6 +151,11 @@ export default function LocationSettingsModal({ isOpen, onClose, onSettingsUpdat
       updated_at: new Date().toISOString()
     };
     await db.settings.put(updated);
+
+    // Immediately push updated location settings to Supabase cloud if online
+    if (navigator.onLine) {
+      syncPendingData().catch((err) => console.warn('सेटिंग्स ऑटो-सिंक सूचना:', err));
+    }
 
     setSavedSuccess(true);
     if (onSettingsUpdated) onSettingsUpdated(updated);

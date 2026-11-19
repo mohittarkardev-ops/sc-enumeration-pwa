@@ -370,8 +370,149 @@ export const pullRemoteData = async (supabase) => {
 };
 
 /**
- * 3. FULL TWO-WAY SYNC (द्विमार्गी पूर्ण समन्वय: PUSH + PULL)
- * Uploads local edits to Supabase, then pulls cloud records into local IndexedDB
+ * 3. PUSH SETTINGS: Uploads local active_settings to Supabase enumerator_settings table
+ */
+export const pushSettingsToCloud = async (supabase) => {
+  try {
+    const localSettings = await db.settings.get('active_settings');
+    if (!localSettings) return { success: false, message: 'कोई लोकल सेटिंग्स नहीं मिली' };
+
+    const payload = {
+      enumerator_id: localSettings.enumerator_id || 'ENUM-001',
+      enumerator_name: localSettings.enumerator_name || 'प्रगणक',
+      state_name: localSettings.state_name || 'उत्तर प्रदेश (Uttar Pradesh)',
+      district_name: localSettings.district_name || 'मथुरा (Mathura)',
+      tehsil_block: localSettings.tehsil_block || 'मथुरा (Mathura)',
+      ward_village_name: localSettings.ward_village_name || '',
+      village_code: localSettings.village_code || '',
+      enumeration_block_no: localSettings.enumeration_block_no || '001',
+      active_section: String(localSettings.active_section || '1'),
+      last_building_no: String(localSettings.last_building_no || '001'),
+      last_census_house_no: String(localSettings.last_census_house_no || '001'),
+      last_household_no: String(localSettings.last_household_no || '001'),
+      updated_at: new Date().toISOString()
+    };
+
+    // Check if remote settings exist
+    const { data: existingRows, error: fetchErr } = await supabase
+      .from('enumerator_settings')
+      .select('id')
+      .limit(1);
+
+    if (fetchErr) {
+      console.warn('लोकेशन सेटिंग्स फेच त्रुटि:', fetchErr.message);
+      return { success: false, error: fetchErr.message };
+    }
+
+    const payloadWithSections = { ...payload, sections: localSettings.sections || [] };
+
+    if (existingRows && existingRows.length > 0) {
+      const targetId = existingRows[0].id;
+      let { error: updateErr } = await supabase
+        .from('enumerator_settings')
+        .update(payloadWithSections)
+        .eq('id', targetId);
+
+      if (updateErr && updateErr.message?.includes('sections')) {
+        const fallback = await supabase
+          .from('enumerator_settings')
+          .update(payload)
+          .eq('id', targetId);
+        updateErr = fallback.error;
+      }
+
+      if (updateErr) {
+        console.warn('लोकेशन सेटिंग्स अपडेट त्रुटि:', updateErr.message);
+        return { success: false, error: updateErr.message };
+      }
+    } else {
+      let { error: insertErr } = await supabase
+        .from('enumerator_settings')
+        .insert([payloadWithSections]);
+
+      if (insertErr && insertErr.message?.includes('sections')) {
+        const fallback = await supabase
+          .from('enumerator_settings')
+          .insert([payload]);
+        insertErr = fallback.error;
+      }
+
+      if (insertErr) {
+        console.warn('लोकेशन सेटिंग्स प्रविष्टि त्रुटि:', insertErr.message);
+        return { success: false, error: insertErr.message };
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('सेटिंग्स पुश अपवाद:', err);
+    return { success: false, error: err.message || err };
+  }
+};
+
+/**
+ * 4. PULL SETTINGS: Downloads remote enumerator_settings and updates local IndexedDB
+ */
+export const pullSettingsFromCloud = async (supabase) => {
+  try {
+    const { data: remoteSettings, error: sErr } = await supabase
+      .from('enumerator_settings')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (sErr) {
+      console.warn('रिमोट सेटिंग्स डाउनलोड त्रुटि:', sErr.message);
+      return { success: false, error: sErr.message };
+    }
+
+    if (!remoteSettings || remoteSettings.length === 0) {
+      return { success: true, updated: false };
+    }
+
+    const rs = remoteSettings[0];
+    const currentLocal = (await db.settings.get('active_settings')) || {};
+
+    let parsedSections = currentLocal.sections;
+    if (rs.sections) {
+      parsedSections = typeof rs.sections === 'string' ? JSON.parse(rs.sections) : rs.sections;
+    }
+
+    const mergedSettings = {
+      ...currentLocal,
+      id: 'active_settings',
+      enumerator_id: rs.enumerator_id || currentLocal.enumerator_id || 'ENUM-001',
+      enumerator_name: rs.enumerator_name || currentLocal.enumerator_name || 'प्रगणक',
+      state_name: rs.state_name || currentLocal.state_name,
+      district_name: rs.district_name || currentLocal.district_name,
+      tehsil_block: rs.tehsil_block || currentLocal.tehsil_block,
+      ward_village_name: rs.ward_village_name || currentLocal.ward_village_name || '',
+      village_code: rs.village_code || currentLocal.village_code || '',
+      enumeration_block_no: rs.enumeration_block_no || currentLocal.enumeration_block_no || '001',
+      active_section: rs.active_section || currentLocal.active_section || '1',
+      sections: parsedSections && parsedSections.length > 0 ? parsedSections : currentLocal.sections,
+      last_building_no: rs.last_building_no || currentLocal.last_building_no || '001',
+      last_census_house_no: rs.last_census_house_no || currentLocal.last_census_house_no || '001',
+      last_household_no: rs.last_household_no || currentLocal.last_household_no || '001',
+      supabase_setting_id: rs.id,
+      updated_at: rs.updated_at || new Date().toISOString()
+    };
+
+    await db.settings.put(mergedSettings);
+
+    return {
+      success: true,
+      updated: true,
+      settings: mergedSettings
+    };
+  } catch (err) {
+    console.warn('रिमोट सेटिंग्स सिंक अपवाद:', err);
+    return { success: false, error: err.message || err };
+  }
+};
+
+/**
+ * 5. FULL TWO-WAY COMPLETE SYNC (Households, Members & Settings across devices)
  */
 export const syncPendingData = async () => {
   if (!navigator.onLine) {
@@ -384,11 +525,17 @@ export const syncPendingData = async () => {
   }
 
   try {
-    // Step A: Push local pending records to cloud
+    // 1. Push settings to cloud
+    await pushSettingsToCloud(supabase);
+
+    // 2. Push local pending households and members to cloud
     const { syncedHhCount, syncedMemCount, errors: pushErrors } = await pushPendingLocalData(supabase);
 
-    // Step B: Pull remote records from cloud into local IndexedDB
+    // 3. Pull remote households and members from cloud into local IndexedDB
     const { totalRemoteHhs, totalRemoteMems, downloadedHhCount, downloadedMemCount } = await pullRemoteData(supabase);
+
+    // 4. Pull remote settings from cloud into local IndexedDB
+    const settingsPull = await pullSettingsFromCloud(supabase);
 
     if (pushErrors && pushErrors.length > 0) {
       return {
@@ -399,9 +546,9 @@ export const syncPendingData = async () => {
 
     let msg = '';
     if (syncedHhCount > 0 || downloadedHhCount > 0) {
-      msg = `समन्वय सफल: ${syncedHhCount} अपलोड, ${downloadedHhCount} डाउनलोड (${totalRemoteHhs} परिवार क्लाउड पर)`;
+      msg = `समन्वय सफल: ${syncedHhCount} परिवार अपलोड, ${downloadedHhCount} डाउनलोड (कुल ${totalRemoteHhs} परिवार व सेटिंग्स सुरक्षित)`;
     } else {
-      msg = `डेटा पूर्णतः समन्वित है (${totalRemoteHhs} परिवार, ${totalRemoteMems} सदस्य क्लाउड पर सुरक्षित)`;
+      msg = `संपूर्ण डेटा समन्वित है: ${totalRemoteHhs} परिवार, ${totalRemoteMems} सदस्य व लोकेशन सेटिंग्स क्लाउड पर सुरक्षित`;
     }
 
     return {
@@ -410,6 +557,8 @@ export const syncPendingData = async () => {
       downloadedHhCount,
       totalRemoteHhs,
       totalRemoteMems,
+      settingsUpdated: settingsPull.updated,
+      updatedSettings: settingsPull.settings,
       message: msg
     };
   } catch (err) {

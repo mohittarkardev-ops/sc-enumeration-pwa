@@ -18,12 +18,16 @@ CREATE TABLE IF NOT EXISTS enumerator_settings (
     village_code TEXT,
     enumeration_block_no TEXT NOT NULL,
     active_section TEXT NOT NULL DEFAULT '1', -- 1, 2, या 3
+    sections JSONB DEFAULT '[]'::jsonb,       -- प्रभाग / टोलों की सूची [{id, name}]
     last_building_no TEXT DEFAULT '001',
     last_census_house_no TEXT DEFAULT '001',
     last_household_no TEXT DEFAULT '001',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration safety for existing deployments
+ALTER TABLE enumerator_settings ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb;
 
 -- 3. Households Table (परिवार प्रपत्र - मुख्य विवरण)
 CREATE TABLE IF NOT EXISTS households (

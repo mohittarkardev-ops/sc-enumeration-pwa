@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LockScreen, { APP_ACCESS_CODE_KEY } from './components/LockScreen';
 import Header from './components/Header';
 import HouseholdEntry from './components/HouseholdEntry';
 import HouseholdListView from './components/HouseholdListView';
@@ -7,6 +8,13 @@ import { db, initDefaultSettings } from './db/db';
 import { syncPendingData } from './db/supabase';
 
 export default function App() {
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return (
+      localStorage.getItem(APP_ACCESS_CODE_KEY) === 'true' ||
+      sessionStorage.getItem(APP_ACCESS_CODE_KEY) === 'true'
+    );
+  });
+
   const [activeSection, setActiveSection] = useState('1');
   const [activeView, setActiveView] = useState('form');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -16,19 +24,43 @@ export default function App() {
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [editingMembers, setEditingMembers] = useState([]);
 
+  const handleLockApp = () => {
+    localStorage.removeItem(APP_ACCESS_CODE_KEY);
+    sessionStorage.removeItem(APP_ACCESS_CODE_KEY);
+    setIsUnlocked(false);
+  };
+
   useEffect(() => {
     initDefaultSettings().then((s) => {
       setSettings(s);
       if (s.active_section) setActiveSection(s.active_section);
-      if (!s.ward_village_name) {
-        setIsSettingsOpen(true);
+
+      // Auto-sync on startup if online: downloads records AND settings entered on other devices
+      if (navigator.onLine) {
+        syncPendingData()
+          .then((res) => {
+            if (res && res.updatedSettings) {
+              setSettings(res.updatedSettings);
+              if (res.updatedSettings.active_section) {
+                setActiveSection(res.updatedSettings.active_section);
+              }
+            }
+          })
+          .catch((err) => console.warn('Startup sync notice:', err))
+          .finally(() => {
+            // Only prompt for settings if ward_village_name is STILL empty after cloud sync
+            db.settings.get('active_settings').then((latest) => {
+              if (!latest?.ward_village_name) {
+                setIsSettingsOpen(true);
+              }
+            });
+          });
+      } else {
+        if (!s.ward_village_name) {
+          setIsSettingsOpen(true);
+        }
       }
     });
-
-    // Auto-sync on startup if online: downloads records entered on other devices
-    if (navigator.onLine) {
-      syncPendingData().catch((err) => console.warn('Startup sync notice:', err));
-    }
   }, []);
 
   const handleSectionChange = async (section) => {
@@ -54,6 +86,10 @@ export default function App() {
     setEditingMembers([]);
   };
 
+  if (!isUnlocked) {
+    return <LockScreen onUnlock={() => setIsUnlocked(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-['Hind'] select-none">
       <Header
@@ -67,6 +103,7 @@ export default function App() {
           setActiveView(view);
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onLockApp={handleLockApp}
         villageName={settings?.ward_village_name}
         sections={settings?.sections || [
           { id: '1', name: 'सेक्शन 1' },

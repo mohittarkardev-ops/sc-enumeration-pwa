@@ -12,7 +12,8 @@ import {
   Database,
   CheckCircle2,
   AlertTriangle,
-  HelpCircle
+  HelpCircle,
+  Lock
 } from 'lucide-react';
 import { db } from '../db/db';
 import { syncPendingData, checkDatabaseConnection } from '../db/supabase';
@@ -25,6 +26,7 @@ export default function Header({
   activeView,
   onViewChange,
   onOpenSettings,
+  onLockApp,
   villageName = 'मथुरा',
   sections = [
     { id: '1', name: 'सेक्शन 1' },
@@ -192,6 +194,17 @@ export default function Header({
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {/* Lock Application */}
+            {onLockApp && (
+              <button
+                onClick={onLockApp}
+                title="प्रणाली तुरंत लॉक करें (Lock App)"
+                className="p-2 rounded-xl bg-[#134D7E] hover:bg-rose-900/80 border border-white/20 text-white transition-all active:scale-95 shadow-sm min-h-[38px] min-w-[38px] flex items-center justify-center"
+              >
+                <Lock className="w-4 h-4 text-amber-300" />
+              </button>
+            )}
 
             {/* View Mode Switcher */}
             <button
