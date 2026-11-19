@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
-  Lock
+  Lock,
+  BookOpen
 } from 'lucide-react';
 import { db } from '../db/db';
 import { syncPendingData, checkDatabaseConnection } from '../db/supabase';
@@ -225,6 +226,20 @@ export default function Header({
                   <span>नया प्रपत्र</span>
                 </>
               )}
+            </button>
+
+            {/* Register Book View Button */}
+            <button
+              onClick={() => onViewChange('register')}
+              title="सम्पूर्ण परिवार पंजिका (Register Book)"
+              className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[38px] border ${
+                activeView === 'register'
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-[#134D7E] hover:bg-[#1a5a93] text-white border-white/20'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">पंजिका</span>
             </button>
           </div>
         </div>

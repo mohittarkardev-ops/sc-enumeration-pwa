@@ -345,10 +345,10 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                   className="p-3.5 sm:p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors gap-2"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-14 h-12 px-2 rounded-xl border border-blue-200 bg-blue-50 flex flex-col items-center justify-center shrink-0 shadow-inner">
-                      <span className="text-[10px] text-[#0B3B60] font-black uppercase leading-none">परिवार</span>
-                      <span className="text-base sm:text-lg font-black text-[#0B3B60] leading-none mt-1">
-                        #{h.household_no}
+                    <div className="w-16 h-12 px-1.5 rounded-xl border border-blue-200 bg-blue-50 flex flex-col items-center justify-center shrink-0 shadow-inner">
+                      <span className="text-[9px] text-[#0B3B60] font-black uppercase leading-none tracking-tight">भ·{String(h.building_no).padStart(3,'0')} म·{String(h.census_house_no).padStart(3,'0')}</span>
+                      <span className="text-sm font-black text-[#0B3B60] leading-none mt-0.5">
+                        प·{String(h.household_no).padStart(3,'0')}
                       </span>
                     </div>
 

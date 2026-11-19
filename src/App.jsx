@@ -3,6 +3,7 @@ import LockScreen, { APP_ACCESS_CODE_KEY } from './components/LockScreen';
 import Header from './components/Header';
 import HouseholdEntry from './components/HouseholdEntry';
 import HouseholdListView from './components/HouseholdListView';
+import RegisterBookView from './components/RegisterBookView';
 import LocationSettingsModal from './components/LocationSettingsModal';
 import { db, initDefaultSettings } from './db/db';
 import { syncPendingData } from './db/supabase';
@@ -145,6 +146,11 @@ export default function App() {
               setEditingMembers([]);
               setActiveView('list');
             }}
+          />
+        ) : activeView === 'register' ? (
+          <RegisterBookView
+            activeSection={activeSection}
+            onBack={() => setActiveView('list')}
           />
         ) : (
           <HouseholdListView
