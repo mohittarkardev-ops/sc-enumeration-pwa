@@ -189,10 +189,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_update_households_timestamp ON households;
 CREATE TRIGGER trg_update_households_timestamp
 BEFORE UPDATE ON households
 FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
 
+DROP TRIGGER IF EXISTS trg_update_members_timestamp ON members;
 CREATE TRIGGER trg_update_members_timestamp
 BEFORE UPDATE ON members
 FOR EACH ROW EXECUTE FUNCTION update_timestamp_column();
@@ -202,8 +204,13 @@ ALTER TABLE enumerator_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon read/write for sync" ON enumerator_settings;
 CREATE POLICY "Allow anon read/write for sync" ON enumerator_settings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon read/write for households" ON households;
 CREATE POLICY "Allow anon read/write for households" ON households FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon read/write for members" ON members;
 CREATE POLICY "Allow anon read/write for members" ON members FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
