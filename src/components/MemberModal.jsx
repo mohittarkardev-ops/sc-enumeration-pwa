@@ -60,6 +60,7 @@ export default function MemberModal({
 
   const [isAgeLocked, setIsAgeLocked] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannedLast4, setScannedLast4] = useState('');
 
   const initialData = {
     local_id: existingMember?.local_id || ('mem_temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
@@ -147,6 +148,7 @@ export default function MemberModal({
     if (isOpen) {
       setActiveTab(0);
       setErrors({});
+      setScannedLast4('');
       if (existingMember) {
         const merged = { ...initialData, ...existingMember };
         // Determine SC/ST radio state
@@ -296,6 +298,9 @@ export default function MemberModal({
       }
       return updated;
     });
+    if (parsed.last4) {
+      setScannedLast4(parsed.last4);
+    }
     setErrors((prev) => ({
       ...prev,
       q1_name: undefined,
@@ -695,6 +700,12 @@ export default function MemberModal({
                   placeholder="12 अंकों का आधार नंबर दर्ज करें"
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base font-mono font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                 />
+                {scannedLast4 && (
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
+                  </div>
+                )}
                 <span className="text-[11px] text-slate-500 block">
                   (संख्यात्मक कीबोर्ड से 12 अंक टाइप करें अथवा शीर्ष पर QR स्कैन करें)
                 </span>
@@ -2450,6 +2461,12 @@ export default function MemberModal({
                     errors.q37_aadhaar_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
                   }`}
                 />
+                {scannedLast4 && (
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
+                  </div>
+                )}
                 {errors.q37_aadhaar_number && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />

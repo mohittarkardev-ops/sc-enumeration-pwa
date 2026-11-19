@@ -21,6 +21,7 @@ export default function QuickMemberModal({
   const [maritalStatus, setMaritalStatus] = useState(1);
   const [aadhaarNumber, setAadhaarNumber] = useState('');
   const [scannedAddress, setScannedAddress] = useState('');
+  const [scannedLast4, setScannedLast4] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -41,6 +42,7 @@ export default function QuickMemberModal({
         setMaritalStatus(Number(existingMember.q5_marital_status) || 1);
         setAadhaarNumber(existingMember.q37_aadhaar_number || '');
         setScannedAddress(existingMember.q30_permanent_address || '');
+        setScannedLast4('');
         if (existingMember.q4a_dob && existingMember.q4a_dob.trim().length === 10) {
           const res = parseAndValidateDob(existingMember.q4a_dob);
           setIsAgeLocked(res.isValid && res.calculatedAge !== null);
@@ -54,6 +56,7 @@ export default function QuickMemberModal({
         setIsAgeLocked(false);
         setAadhaarNumber('');
         setScannedAddress('');
+        setScannedLast4('');
         setErrorMsg('');
 
         if (serialNo === 1) {
@@ -100,6 +103,9 @@ export default function QuickMemberModal({
     }
     if (parsed.address) {
       setScannedAddress(parsed.address);
+    }
+    if (parsed.last4) {
+      setScannedLast4(parsed.last4);
     }
     setErrorMsg('');
   };
@@ -442,6 +448,12 @@ export default function QuickMemberModal({
               placeholder="12 अंकों का आधार नंबर दर्ज करें"
               className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-mono text-sm sm:text-base font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
             />
+            {scannedLast4 && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
+              </div>
+            )}
           </div>
 
         </div>
