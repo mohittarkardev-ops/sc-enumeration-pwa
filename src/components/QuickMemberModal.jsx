@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Check, AlertCircle, Sparkles, ChevronDown, QrCode } from 'lucide-react';
+import { X, UserPlus, Check, AlertCircle, Sparkles, ChevronDown, QrCode, CheckCircle2 } from 'lucide-react';
 import { RELATIONSHIP_CODES, GENDER_CODES, MARITAL_STATUS_CODES } from '../constants/censusCodes';
 import { sanitizeText, sanitizeNumeric, formatDobInput, parseAndValidateDob } from '../utils/validation';
 import AadhaarQRScanner from './AadhaarQRScanner';
