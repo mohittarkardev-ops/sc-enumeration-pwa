@@ -15,6 +15,7 @@ import {
   QrCode
 } from 'lucide-react';
 import AadhaarQRScanner from './AadhaarQRScanner';
+import AadhaarDigitInput from './AadhaarDigitInput';
 import { 
   sanitizeName, 
   sanitizeNumeric, 
@@ -682,33 +683,32 @@ export default function MemberModal({
               </div>
 
               {/* Q.37 आधार संख्या (Aadhaar Number - 12 अंक त्वरित प्रविष्टि) */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs sm:text-sm font-bold text-slate-900">
                     प्र. 37 आधार संख्या (Aadhaar Number - 12 अंक)
                   </label>
-                  <span className="text-[11px] font-mono text-slate-500 font-bold">
-                    {(formData.q37_aadhaar_number || '').length}/12 अंक
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({
+                      ...prev,
+                      q37_aadhaar_number: prev.q37_aadhaar_number === 'नहीं' ? '' : 'नहीं'
+                    }))}
+                    className="text-xs text-[#0B3B60] font-bold underline hover:text-blue-900"
+                  >
+                    {formData.q37_aadhaar_number === 'नहीं' ? '+ आधार नंबर दर्ज करें' : 'आधार उपलब्ध नहीं'}
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={12}
+
+                <AadhaarDigitInput
                   value={formData.q37_aadhaar_number || ''}
-                  onChange={(e) => setFormData({ ...formData, q37_aadhaar_number: sanitizeNumeric(e.target.value).slice(0, 12) })}
-                  placeholder="12 अंकों का आधार नंबर दर्ज करें"
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base font-mono font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                  onChange={(val) => {
+                    setFormData((prev) => ({ ...prev, q37_aadhaar_number: val }));
+                    if (errors.q37_aadhaar_number) setErrors((prev) => ({ ...prev, q37_aadhaar_number: undefined }));
+                  }}
+                  scannedLast4={scannedLast4}
+                  error={errors.q37_aadhaar_number}
                 />
-                {scannedLast4 && (
-                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
-                  </div>
-                )}
-                <span className="text-[11px] text-slate-500 block">
-                  (संख्यात्मक कीबोर्ड से 12 अंक टाइप करें अथवा शीर्ष पर QR स्कैन करें)
-                </span>
               </div>
 
               {/* Q.5 वैवाहिक स्थिति */}
@@ -2438,35 +2438,32 @@ export default function MemberModal({
               </div>
 
               {/* Q.37 आधार नंबर */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                    प्र. 37 आधार नंबर (12 अंक)
+                    प्र. 37 आधार संख्या (12 अंक)
                   </label>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, q37_aadhaar_number: 'नहीं' })}
-                    className="text-[10px] text-[#0B3B60] font-bold underline"
+                    onClick={() => setFormData((prev) => ({
+                      ...prev,
+                      q37_aadhaar_number: prev.q37_aadhaar_number === 'नहीं' ? '' : 'नहीं'
+                    }))}
+                    className="text-xs text-[#0B3B60] font-bold underline hover:text-blue-900"
                   >
-                    आधार उपलब्ध नहीं
+                    {formData.q37_aadhaar_number === 'नहीं' ? '+ आधार नंबर दर्ज करें' : 'आधार उपलब्ध नहीं'}
                   </button>
                 </div>
-                <input
-                  type="text"
-                  maxLength={12}
-                  value={formData.q37_aadhaar_number}
-                  onChange={(e) => handleAadhaarChange(e.target.value)}
-                  placeholder="12 अंकों का आधार नंबर दर्ज करें"
-                  className={`w-full px-3 py-2 border rounded-lg text-sm font-mono tracking-wider font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
-                    errors.q37_aadhaar_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
-                  }`}
+
+                <AadhaarDigitInput
+                  value={formData.q37_aadhaar_number || ''}
+                  onChange={(val) => {
+                    setFormData((prev) => ({ ...prev, q37_aadhaar_number: val }));
+                    if (errors.q37_aadhaar_number) setErrors((prev) => ({ ...prev, q37_aadhaar_number: undefined }));
+                  }}
+                  scannedLast4={scannedLast4}
+                  error={errors.q37_aadhaar_number}
                 />
-                {scannedLast4 && (
-                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
-                  </div>
-                )}
                 {errors.q37_aadhaar_number && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -2477,19 +2474,50 @@ export default function MemberModal({
 
               {/* Q.38 वोटर आईडी (18+ वर्ष) */}
               {age >= 18 ? (
-                <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
-                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                    प्र. 38 मतदाता पहचान पत्र (EPIC नंबर - 18 वर्ष+)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.q38_voter_id_epic}
-                    onChange={(e) => handleVoterIdChange(e.target.value)}
-                    placeholder="EPIC नंबर दर्ज करें (उदा. ABC1234567)"
-                    className={`w-full px-3 py-2.5 border rounded-xl text-xs sm:text-sm font-mono uppercase font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
-                      errors.q38_voter_id_epic ? 'border-red-500' : 'border-slate-300'
-                    }`}
-                  />
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                      प्र. 38 मतदाता पहचान पत्र (EPIC नंबर - 18 वर्ष+)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({
+                        ...prev,
+                        q38_voter_id_epic: prev.q38_voter_id_epic === 'नहीं' ? '' : 'नहीं'
+                      }))}
+                      className="text-xs text-[#0B3B60] font-bold underline hover:text-blue-900"
+                    >
+                      {formData.q38_voter_id_epic === 'नहीं' ? '+ EPIC नंबर दर्ज करें' : 'वोटर आईडी उपलब्ध नहीं'}
+                    </button>
+                  </div>
+
+                  {formData.q38_voter_id_epic === 'नहीं' ? (
+                    <div className="flex items-center justify-between p-3 bg-slate-100 border border-slate-300 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                        <span className="text-xs sm:text-sm font-bold text-slate-700">
+                          मतदाता पहचान पत्र (EPIC) उपलब्ध नहीं है (प्रपत्र में <strong className="text-slate-900">'नहीं'</strong> दर्ज होगा)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, q38_voter_id_epic: '' }))}
+                        className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-[#0B3B60] shadow-xs active:scale-95 transition-all"
+                      >
+                        + EPIC दर्ज करें
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={formData.q38_voter_id_epic || ''}
+                      onChange={(e) => handleVoterIdChange(e.target.value)}
+                      placeholder="EPIC नंबर दर्ज करें (उदा. ABC1234567)"
+                      className={`w-full px-3 py-2.5 border rounded-xl text-xs sm:text-sm font-mono uppercase font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
+                        errors.q38_voter_id_epic ? 'border-red-500 bg-red-50' : 'border-slate-300'
+                      }`}
+                    />
+                  )}
                   {errors.q38_voter_id_epic && (
                     <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -2501,7 +2529,7 @@ export default function MemberModal({
 
               {/* Q.39 भारतीय पासपोर्ट (हो तो संख्या) */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <div>
                     <label className="block text-xs sm:text-sm font-bold text-slate-900">
                       प्र. 39 भारतीय पासपोर्ट (हो तो संख्या दर्ज करें)
@@ -2510,42 +2538,46 @@ export default function MemberModal({
                       आधिकारिक जनगणना निर्देश: यदि व्यक्ति के पास वैध भारतीय पासपोर्ट उपलब्ध है तो 8-वर्णों की संख्या दर्ज करें।
                     </p>
                   </div>
-                  {formData.q39_passport_number && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({
+                      ...prev,
+                      q39_passport_number: prev.q39_passport_number === 'नहीं' ? '' : 'नहीं'
+                    }))}
+                    className="text-xs text-[#0B3B60] font-bold underline hover:text-blue-900 shrink-0"
+                  >
+                    {formData.q39_passport_number === 'नहीं' ? '+ पासपोर्ट दर्ज करें' : 'पासपोर्ट उपलब्ध नहीं'}
+                  </button>
+                </div>
+
+                {formData.q39_passport_number === 'नहीं' ? (
+                  <div className="flex items-center justify-between p-3 bg-slate-100 border border-slate-300 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                      <span className="text-xs sm:text-sm font-bold text-slate-700">
+                        पासपोर्ट उपलब्ध नहीं है (प्रपत्र में <strong className="text-slate-900">'नहीं'</strong> दर्ज होगा)
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, q39_passport_number: '' }))}
-                      className="text-[11px] text-red-600 font-bold hover:underline"
+                      className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-[#0B3B60] shadow-xs active:scale-95 transition-all"
                     >
-                      पासपोर्ट हटाएं
+                      + संख्या दर्ज करें
                     </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      maxLength={8}
-                      value={formData.q39_passport_number || ''}
-                      onChange={(e) => handlePassportChange(e.target.value)}
-                      placeholder="उदा. Z1234567 (1 अक्षर + 7 अंक)"
-                      className={`w-full px-3 py-2.5 border rounded-xl text-xs sm:text-sm font-mono uppercase font-black bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] tracking-widest ${
-                        errors.q39_passport_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
-                      }`}
-                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, q39_passport_number: '' }))}
-                    className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                      !formData.q39_passport_number
-                        ? 'bg-slate-100 text-slate-700 border-slate-300 font-extrabold'
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                ) : (
+                  <input
+                    type="text"
+                    maxLength={8}
+                    value={formData.q39_passport_number || ''}
+                    onChange={(e) => handlePassportChange(e.target.value)}
+                    placeholder="उदा. Z1234567 (1 अक्षर + 7 अंक)"
+                    className={`w-full px-3 py-2.5 border rounded-xl text-xs sm:text-sm font-mono uppercase font-black bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] tracking-widest ${
+                      errors.q39_passport_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
                     }`}
-                  >
-                    पासपोर्ट नहीं है
-                  </button>
-                </div>
+                  />
+                )}
 
                 {errors.q39_passport_number && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">

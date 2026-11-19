@@ -3,6 +3,7 @@ import { X, UserPlus, Check, AlertCircle, Sparkles, ChevronDown, QrCode, CheckCi
 import { RELATIONSHIP_CODES, GENDER_CODES, MARITAL_STATUS_CODES } from '../constants/censusCodes';
 import { sanitizeText, sanitizeNumeric, formatDobInput, parseAndValidateDob } from '../utils/validation';
 import AadhaarQRScanner from './AadhaarQRScanner';
+import AadhaarDigitInput from './AadhaarDigitInput';
 
 export default function QuickMemberModal({
   isOpen,
@@ -167,7 +168,7 @@ export default function QuickMemberModal({
     }
 
     const finalAge = age !== '' ? parseInt(age, 10) : 0;
-    const cleanAadhaar = sanitizeNumeric(aadhaarNumber).slice(0, 12);
+    const cleanAadhaar = aadhaarNumber === 'नहीं' ? 'नहीं' : sanitizeNumeric(aadhaarNumber).slice(0, 12);
 
     const memberData = {
       ...(existingMember || {}),
@@ -430,30 +431,24 @@ export default function QuickMemberModal({
           </div>
 
           {/* ३७. आधार संख्या (Aadhaar Number) */}
-          <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
             <div className="flex items-center justify-between">
               <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
                 ३७. आधार संख्या (Aadhaar Number)
               </label>
-              <span className="text-[11px] font-mono text-slate-500 font-bold">
-                {aadhaarNumber.length}/12 अंक
-              </span>
+              <button
+                type="button"
+                onClick={() => setAadhaarNumber(aadhaarNumber === 'नहीं' ? '' : 'नहीं')}
+                className="text-xs text-[#0B3B60] font-bold underline hover:text-blue-900 active:scale-95"
+              >
+                {aadhaarNumber === 'नहीं' ? '+ आधार नंबर दर्ज करें' : 'आधार उपलब्ध नहीं'}
+              </button>
             </div>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={12}
+            <AadhaarDigitInput
               value={aadhaarNumber}
-              onChange={(e) => setAadhaarNumber(sanitizeNumeric(e.target.value).slice(0, 12))}
-              placeholder="12 अंकों का आधार नंबर दर्ज करें"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-mono text-sm sm:text-base font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+              onChange={(val) => setAadhaarNumber(val)}
+              scannedLast4={scannedLast4}
             />
-            {scannedLast4 && (
-              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>QR स्कैन सफल: अंतिम 4 अंक <strong>{scannedLast4}</strong> (कार्ड से 12 अंक पूर्ण करें)</span>
-              </div>
-            )}
           </div>
 
         </div>

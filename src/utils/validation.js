@@ -172,7 +172,7 @@ export const validateAadhaarNumber = (aadhaar) => {
  * Validates Election Commission Voter ID (EPIC)
  */
 export const validateVoterId = (epic) => {
-  if (!epic || epic.trim() === '') return { isValid: true };
+  if (!epic || epic.trim() === '' || epic.trim() === 'नहीं' || epic.trim() === 'उपलब्ध नहीं') return { isValid: true };
   const clean = sanitizeAlphanumeric(epic);
   if (clean.length < 5 || clean.length > 20) {
     return { isValid: false, message: 'मतदाता पहचान पत्र (EPIC) 5 से 20 वर्णों का होना चाहिए' };
