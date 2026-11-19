@@ -17,7 +17,8 @@
     "pako": "^3.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zxing-wasm": "^3.1.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",

@@ -1,74 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { X, Camera, Flashlight, AlertCircle, CheckCircle2, RefreshCw, Upload, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+import { 
+  X, 
+  Camera, 
+  Flashlight, 
+  AlertCircle, 
+  CheckCircle2, 
+  Upload, 
+  ZoomIn, 
+  ZoomOut, 
+  Loader2,
+  RefreshCw,
+  Sparkles
+} from 'lucide-react';
+import { 
+  readBarcodesFromImageFile, 
+  readBarcodesFromImageData, 
+  setZXingModuleOverrides 
+} from 'zxing-wasm/reader';
 import { parseAadhaarQRCode } from '../utils/aadhaarQrParser';
 
-/**
- * Downsamples large mobile camera photos (e.g. 12MP/48MP) to ~1600px
- * so ZXing/html5-qrcode can decode them quickly without memory pressure.
- */
-async function optimizeImageForQrScan(file) {
-  return new Promise((resolve) => {
-    if (!file || !file.type.startsWith('image/')) {
-      resolve(file);
-      return;
-    }
-
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const maxDim = 1600;
-      if (img.width <= maxDim && img.height <= maxDim) {
-        resolve(file); // Size is already optimal
-        return;
-      }
-
-      let w = img.width;
-      let h = img.height;
-      if (w > h) {
-        h = Math.round((h * maxDim) / w);
-        w = maxDim;
-      } else {
-        w = Math.round((w * maxDim) / h);
-        h = maxDim;
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(file);
-        return;
-      }
-
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, w, h);
-
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(new File([blob], file.name || 'qr.jpg', { type: 'image/jpeg' }));
-          } else {
-            resolve(file);
-          }
-        },
-        'image/jpeg',
-        0.92
-      );
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(file);
-    };
-
-    img.src = url;
-  });
-}
+// Configure zxing-wasm to load the high-performance C++ WebAssembly binary
+setZXingModuleOverrides({
+  locateFile: () => '/zxing_reader.wasm'
+});
 
 export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
   const [scanError, setScanError] = useState('');
@@ -81,138 +35,222 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
   const [zoomRange, setZoomRange] = useState({ min: 1, max: 1, step: 0.1 });
   const [canZoom, setCanZoom] = useState(false);
 
-  const scannerRef = useRef(null);
-  const isStoppingRef = useRef(false);
-  const readerElementId = 'aadhaar-qr-reader-container';
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const animationFrameIdRef = useRef(null);
+  const isDecodingBusyRef = useRef(false);
+  const hasDetectedRef = useRef(false);
 
+  // ── Camera Lifecycle ──
   useEffect(() => {
     if (!isOpen) return;
 
-    let html5QrCode = null;
     let isMounted = true;
+    hasDetectedRef.current = false;
+    isDecodingBusyRef.current = false;
 
-    const startScanner = async () => {
+    const startCamera = async () => {
       setScanError('');
       setIsScanning(true);
 
-      // Short delay for modal DOM animation
-      await new Promise((r) => setTimeout(r, 180));
-
-      const container = document.getElementById(readerElementId);
-      if (!container || !isMounted) return;
+      // Constraints for crystal-clear HD video stream
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          advanced: [{ focusMode: 'continuous' }]
+        }
+      };
 
       try {
-        html5QrCode = new Html5Qrcode(readerElementId, {
-          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Native hardware acceleration on Chrome Android
-          },
-          verbose: false
-        });
-        scannerRef.current = html5QrCode;
-
-        // Optimized scan config for dense Aadhaar QR codes
-        const config = {
-          fps: 15,
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            // 88% of viewfinder size gives maximum resolution for dense Aadhaar QRs
-            const size = Math.max(260, Math.floor(minEdge * 0.88));
-            return { width: size, height: size };
-          },
-          videoConstraints: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          }
-        };
-
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          config,
-          (decodedText) => {
-            // Success callback
-            const parseResult = parseAadhaarQRCode(decodedText);
-            if (parseResult.success) {
-              if (navigator.vibrate) {
-                try { navigator.vibrate(120); } catch (_) {}
-              }
-              stopScanner().then(() => {
-                onScanSuccess(parseResult.data);
-                onClose();
-              });
-            } else {
-              setScanError(parseResult.error || 'अमान्य आधार QR कोड। कृपया साफ़ QR पर फ़ोकस करें।');
-            }
-          },
-          () => {
-            // Frame scan in progress
-          }
-        );
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (strictErr) {
+          // Fallback to simpler constraints if 1080p is unavailable
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: 'environment' }
+          });
+        }
 
         if (!isMounted) {
-          stopScanner();
+          stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        // Check camera track capabilities for Torch and Zoom
-        try {
-          const capabilities = html5QrCode.getRunningTrackCapabilities();
-          if (capabilities) {
-            if (capabilities.torch) {
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        // Check Torch & Zoom Capabilities
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
+          try {
+            const caps = videoTrack.getCapabilities();
+            if (caps.torch) {
               setCanToggleTorch(true);
             }
-            if (capabilities.zoom) {
+            if (caps.zoom) {
               setCanZoom(true);
               setZoomRange({
-                min: capabilities.zoom.min || 1,
-                max: capabilities.zoom.max || 3,
-                step: capabilities.zoom.step || 0.1
+                min: caps.zoom.min || 1,
+                max: caps.zoom.max || 3,
+                step: caps.zoom.step || 0.1
               });
-              setZoomLevel(capabilities.zoom.min || 1);
+              setZoomLevel(caps.zoom.min || 1);
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+
+        // Start scanning frames
+        startScanLoop();
       } catch (err) {
-        console.error('Aadhaar Camera start error:', err);
+        console.error('Camera initialization error:', err);
         setHasCameraPermission(false);
         setScanError('कैमरा शुरू करने में असमर्थ। कृपया कैमरा अनुमति दें या नीचे गैलरी से फोटो चुनें।');
         setIsScanning(false);
       }
     };
 
-    startScanner();
+    startCamera();
 
     return () => {
       isMounted = false;
-      stopScanner();
+      stopCamera();
     };
   }, [isOpen]);
 
-  const stopScanner = async () => {
-    if (isStoppingRef.current) return;
-    isStoppingRef.current = true;
-
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-        scannerRef.current.clear();
-      } catch (e) {
-        console.warn('Scanner stop notice:', e);
-      }
-      scannerRef.current = null;
+  const stopCamera = () => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsScanning(false);
-    isStoppingRef.current = false;
   };
 
+  // ── Frame Scanning Loop (Dual Engine: Native BarcodeDetector + ZXing WASM) ──
+  const startScanLoop = () => {
+    let lastScanTime = 0;
+    const SCAN_INTERVAL_MS = 120; // Scan every ~120ms (8-10 scans/sec for peak responsiveness)
+
+    // Check if browser has native BarcodeDetector API (hardware accelerated)
+    const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+    let nativeDetector = null;
+    if (hasNativeDetector) {
+      try {
+        nativeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      } catch (_) {}
+    }
+
+    const scanFrame = async (timestamp) => {
+      if (hasDetectedRef.current) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (video && video.readyState >= 2 && canvas) {
+        if (timestamp - lastScanTime >= SCAN_INTERVAL_MS && !isDecodingBusyRef.current) {
+          lastScanTime = timestamp;
+          isDecodingBusyRef.current = true;
+
+          try {
+            const vWidth = video.videoWidth;
+            const vHeight = video.videoHeight;
+
+            if (vWidth > 0 && vHeight > 0) {
+              canvas.width = vWidth;
+              canvas.height = vHeight;
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
+              ctx.drawImage(video, 0, 0, vWidth, vHeight);
+
+              let decodedRawText = null;
+
+              // Engine 1: Native BarcodeDetector (instant on Chrome Android)
+              if (nativeDetector) {
+                try {
+                  const nativeResults = await nativeDetector.detect(canvas);
+                  if (nativeResults && nativeResults.length > 0 && nativeResults[0].rawValue) {
+                    decodedRawText = nativeResults[0].rawValue;
+                  }
+                } catch (_) {}
+              }
+
+              // Engine 2: Industrial ZXing-C++ WebAssembly (handles dense 3000-char Aadhaar QRs)
+              if (!decodedRawText) {
+                const imageData = ctx.getImageData(0, 0, vWidth, vHeight);
+                const wasmResults = await readBarcodesFromImageData(imageData, {
+                  formats: ['QRCode'],
+                  tryHarder: true,
+                  tryRotate: true,
+                  tryInvert: true
+                });
+
+                if (wasmResults && wasmResults.length > 0 && wasmResults[0].text) {
+                  decodedRawText = wasmResults[0].text;
+                }
+              }
+
+              // If a QR was decoded, process Aadhaar data
+              if (decodedRawText && !hasDetectedRef.current) {
+                hasDetectedRef.current = true;
+                const parseResult = parseAadhaarQRCode(decodedRawText);
+
+                if (parseResult.success) {
+                  // Haptic feedback
+                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                    try { navigator.vibrate(120); } catch (_) {}
+                  }
+
+                  stopCamera();
+                  onScanSuccess(parseResult.data);
+                  onClose();
+                  return;
+                } else {
+                  // Text decoded but not Aadhaar format, allow retry
+                  hasDetectedRef.current = false;
+                  setScanError(parseResult.error || 'आधार QR कोड अमान्य है। कृपया कार्ड के सही QR कोड पर फ़ोकस करें।');
+                }
+              }
+            }
+          } catch (loopErr) {
+            console.warn('Frame scan warning:', loopErr);
+          } finally {
+            isDecodingBusyRef.current = false;
+          }
+        }
+      }
+
+      if (!hasDetectedRef.current) {
+        animationFrameIdRef.current = requestAnimationFrame(scanFrame);
+      }
+    };
+
+    animationFrameIdRef.current = requestAnimationFrame(scanFrame);
+  };
+
+  // ── Torch / Flashlight Control ──
   const handleToggleTorch = async () => {
-    if (!scannerRef.current || !canToggleTorch) return;
+    if (!streamRef.current || !canToggleTorch) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
     try {
       const nextState = !torchOn;
-      await scannerRef.current.applyVideoConstraints({
+      await track.applyConstraints({
         advanced: [{ torch: nextState }]
       });
       setTorchOn(nextState);
@@ -221,11 +259,15 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
     }
   };
 
+  // ── Zoom Control ──
   const handleZoomChange = async (newZoom) => {
-    if (!scannerRef.current || !canZoom) return;
+    if (!streamRef.current || !canZoom) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
     try {
       const clamped = Math.max(zoomRange.min, Math.min(zoomRange.max, newZoom));
-      await scannerRef.current.applyVideoConstraints({
+      await track.applyConstraints({
         advanced: [{ zoom: clamped }]
       });
       setZoomLevel(clamped);
@@ -234,6 +276,7 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
     }
   };
 
+  // ── Gallery / Image File Upload (Instant ZXing WASM Engine) ──
   const handleFileUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -242,36 +285,35 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
     setIsProcessingFile(true);
 
     try {
-      // 1. Stop active camera first so html5-qrcode can safely scan file
-      await stopScanner();
-
-      // 2. Downsample huge phone photos to prevent memory crashes
-      const optimizedFile = await optimizeImageForQrScan(file);
-
-      // 3. Scan file using dummy container (fixed offscreen with layout)
-      const html5FileScanner = new Html5Qrcode('aadhaar-file-reader-dummy', {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
-        verbose: false
+      // Decode image directly using C++ WebAssembly
+      const results = await readBarcodesFromImageFile(file, {
+        formats: ['QRCode'],
+        tryHarder: true,
+        tryRotate: true,
+        tryInvert: true
       });
 
-      const decodedText = await html5FileScanner.scanFile(optimizedFile, true);
-      const parseResult = parseAadhaarQRCode(decodedText);
+      if (results && results.length > 0 && results[0].text) {
+        const decodedText = results[0].text;
+        const parseResult = parseAadhaarQRCode(decodedText);
 
-      if (parseResult.success) {
-        if (navigator.vibrate) {
-          try { navigator.vibrate(120); } catch (_) {}
+        if (parseResult.success) {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate(120); } catch (_) {}
+          }
+          stopCamera();
+          onScanSuccess(parseResult.data);
+          onClose();
+          return;
+        } else {
+          setScanError(parseResult.error || 'फोटो में मिला QR कोड मान्य आधार डेटा नहीं है।');
         }
-        onScanSuccess(parseResult.data);
-        onClose();
       } else {
-        setScanError(parseResult.error || 'फोटो में मान्य आधार QR कोड नहीं मिला।');
+        setScanError('फोटो में आधार QR कोड नहीं मिल सका। कृपया स्पष्ट, सीधी फोटो अपलोड करें जिसमें QR कोड साफ़ दिखे।');
       }
     } catch (err) {
       console.error('File scan error:', err);
-      setScanError('फोटो से QR कोड नहीं पढ़ा जा सका। कृपया स्पष्ट और सीधे एंगल की फोटो अपलोड करें।');
+      setScanError('फ़ाइल पढ़ने में त्रुटि: ' + (err.message || 'अज्ञात त्रुटि'));
     } finally {
       setIsProcessingFile(false);
     }
@@ -289,8 +331,11 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
               <Camera className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm sm:text-base leading-tight">
-                आधार QR कोड स्कैनर (HD)
+              <h3 className="font-extrabold text-sm sm:text-base leading-tight flex items-center gap-1.5">
+                <span>आधार QR स्कैनर</span>
+                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded">
+                  ZXing-C++ WASM
+                </span>
               </h3>
               <p className="text-[11px] text-slate-300">
                 नाम, जन्मतिथि, लिंग व पता स्वतः भरने हेतु
@@ -299,7 +344,8 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
           </div>
           <button
             onClick={() => {
-              stopScanner().then(onClose);
+              stopCamera();
+              onClose();
             }}
             className="p-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
             title="बंद करें"
@@ -308,24 +354,35 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
           </button>
         </div>
 
-        {/* Viewfinder / Camera Feed */}
-        <div className="relative bg-black flex-1 flex flex-col items-center justify-center min-h-[320px] overflow-hidden">
-          <div id={readerElementId} className="w-full h-full min-h-[320px]" />
-
-          {/* Dummy element for offscreen file scanning */}
-          <div
-            id="aadhaar-file-reader-dummy"
-            style={{
-              position: 'fixed',
-              top: '-9999px',
-              left: '-9999px',
-              width: '320px',
-              height: '320px',
-              visibility: 'hidden'
-            }}
+        {/* Viewfinder / Live Video Camera Feed */}
+        <div className="relative bg-black flex-1 flex flex-col items-center justify-center min-h-[340px] overflow-hidden">
+          {/* Native HTML5 Video Element */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover min-h-[340px]"
           />
 
-          {/* Camera Controls Overlay: Torch & Zoom */}
+          {/* Offscreen Canvas for Image Processing */}
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Animated Viewfinder Overlay with Corner Brackets */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-6">
+            <div className="relative w-64 h-64 sm:w-72 sm:h-72 border-2 border-white/30 rounded-2xl overflow-hidden shadow-2xl">
+              {/* Corner brackets */}
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-amber-400 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-amber-400 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-amber-400 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-amber-400 rounded-br-xl" />
+
+              {/* Animated laser scan beam */}
+              <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent animate-pulse shadow-[0_0_12px_#fbbf24] top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          {/* Camera Controls: Torch & Zoom */}
           <div className="absolute top-3 right-3 flex flex-col gap-2 z-20">
             {canToggleTorch && isScanning && (
               <button
@@ -369,18 +426,18 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
           {isProcessingFile && (
             <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center gap-2.5 z-30 text-white">
               <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-              <p className="text-sm font-bold">आधार फोटो से QR डिकोड हो रहा है...</p>
-              <p className="text-xs text-slate-400">कृपया 1-2 सेकंड प्रतीक्षा करें</p>
+              <p className="text-sm font-bold">WASM इंजन द्वारा QR स्कैन हो रहा है...</p>
+              <p className="text-xs text-slate-400">कृपया प्रतीक्षा करें</p>
             </div>
           )}
 
-          {/* Tips Overlay */}
+          {/* Guidance Banner */}
           <div className="absolute bottom-2 inset-x-2 bg-slate-950/85 backdrop-blur-md p-2 rounded-xl text-center border border-slate-800 text-white z-10 pointer-events-none">
             <p className="text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5">
-              <span>🎯 आधार कार्ड के QR कोड को चौकोर फ्रेम में रखें</span>
+              <span>🎯 आधार कार्ड के QR कोड को पीले चौकोर बॉक्स में रखें</span>
             </p>
             <p className="text-[10px] text-slate-300 mt-0.5">
-              कैमरा 15-20 सेमी दूर रखें ताकि QR कोड धुंधला न हो और फ़ोकस बना रहे
+              कैमरा 15-20 सेमी दूर रखें ताकि QR कोड साफ़ दिखे (धुंधला न हो)
             </p>
           </div>
         </div>
@@ -395,7 +452,7 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
 
         {/* Footer Actions */}
         <div className="p-3 bg-slate-800 border-t border-slate-700 flex items-center justify-between gap-2 shrink-0">
-          {/* File Upload Fallback */}
+          {/* File Upload Button (Powered by zxing-wasm) */}
           <label className="flex-1 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 shadow-sm">
             <Upload className="w-3.5 h-3.5" />
             <span>गैलरी / फ़ाइल से QR फोटो चुनें</span>
@@ -410,7 +467,8 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
           <button
             type="button"
             onClick={() => {
-              stopScanner().then(onClose);
+              stopCamera();
+              onClose();
             }}
             className="py-2 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold active:scale-98"
           >

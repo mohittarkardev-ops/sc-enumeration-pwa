@@ -10,7 +10,7 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
           supabase: ['@supabase/supabase-js'],
           dexie: ['dexie', 'dexie-react-hooks'],
-          scanner: ['html5-qrcode', 'pako']
+          scanner: ['zxing-wasm', 'pako']
         }
       }
     },
