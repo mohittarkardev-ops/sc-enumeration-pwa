@@ -180,6 +180,29 @@ export const validateVoterId = (epic) => {
   return { isValid: true, cleanValue: clean };
 };
 
+/**
+ * Validates Indian Passport Number (1 letter + 7 digits = 8 characters)
+ */
+export const validatePassportNumber = (passport) => {
+  if (!passport || passport.trim() === '' || passport.trim() === 'नहीं' || passport.trim() === 'उपलब्ध नहीं') {
+    return { isValid: true };
+  }
+  const clean = sanitizeAlphanumeric(passport).toUpperCase();
+  if (clean.length !== 8) {
+    return {
+      isValid: false,
+      message: 'भारतीय पासपोर्ट पूरे 8 वर्णों (1 अक्षर व 7 अंक, उदा. M1234567) का होना चाहिए'
+    };
+  }
+  if (!/^[A-Z][0-9]{7}$/.test(clean)) {
+    return {
+      isValid: false,
+      message: 'पासपोर्ट प्रारूप अमान्य है: प्रथम वर्ण अक्षर तथा शेष 7 अंक होने चाहिए (उदा. Z1234567)'
+    };
+  }
+  return { isValid: true, cleanValue: clean };
+};
+
 // --- 4. COMPREHENSIVE MEMBER VALIDATION ---
 
 export const validateMemberRecord = (member, existingMembers = [], currentIndex = null) => {
@@ -303,6 +326,11 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
   if (age >= 18 && member.q38_voter_id_epic) {
     const epicCheck = validateVoterId(member.q38_voter_id_epic);
     if (!epicCheck.isValid) errors.q38_voter_id_epic = epicCheck.message;
+  }
+
+  if (member.q39_passport_number) {
+    const passCheck = validatePassportNumber(member.q39_passport_number);
+    if (!passCheck.isValid) errors.q39_passport_number = passCheck.message;
   }
 
   return {

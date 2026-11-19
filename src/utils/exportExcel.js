@@ -4,6 +4,7 @@ import {
   GENDER_CODES,
   MARITAL_STATUS_CODES,
   RELIGION_CODES,
+  DISABILITY_CODES,
   EDUCATION_STATUS_CODES,
   EDUCATION_LEVEL_CODES,
   WORK_LAST_YEAR_CODES,
@@ -87,7 +88,10 @@ export const exportAllDataToExcel = async () => {
       'Q.11 पिता जीवित व क्र.सं.': m.q11_father_in_hh ? `हाँ (#${m.q11_father_serial_no})` : (m.q11_father_name || 'नहीं'),
       'Q.12 माता जीवित व क्र.सं.': m.q12_mother_in_hh ? `हाँ (#${m.q12_mother_serial_no})` : (m.q12_mother_name || 'नहीं'),
       'Q.13(क) दिव्यांगता': m.q13a_disabled === 1 ? 'हाँ' : 'नहीं',
-      'Q.13(ख) दिव्यांगता प्रकार': (m.q13b_disability_types || []).join(', '),
+      'Q.13(ख) दिव्यांगता प्रकार (गंभीरता क्रम)': (m.q13b_disability_types || []).map((code, idx) => {
+        const found = DISABILITY_CODES.find(d => d.code === Number(code));
+        return `[क्रम ${idx + 1}: ${found ? found.label : code}]`;
+      }).join(' | '),
       'Q.14(क) मातृभाषा': m.q14a_mother_tongue || 'हिन्दी',
       'Q.14(ख) अन्य भाषाएं': m.q14b_other_languages || '',
       'Q.15(क) साक्षरता': m.q15a_literacy === 1 ? 'साक्षर' : 'निरक्षर',

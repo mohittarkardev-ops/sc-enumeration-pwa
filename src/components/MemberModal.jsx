@@ -19,6 +19,7 @@ import {
   sanitizeText, 
   sanitizeAlphanumeric, 
   validateMemberRecord,
+  validatePassportNumber,
   formatDobInput,
   parseAndValidateDob
 } from '../utils/validation';
@@ -287,6 +288,46 @@ export default function MemberModal({
     if (errors.q38_voter_id_epic) setErrors((prev) => ({ ...prev, q38_voter_id_epic: undefined }));
   };
 
+  const handlePassportChange = (val) => {
+    const clean = sanitizeAlphanumeric(val).toUpperCase().slice(0, 8);
+    setFormData((prev) => ({ ...prev, q39_passport_number: clean }));
+    if (errors.q39_passport_number) setErrors((prev) => ({ ...prev, q39_passport_number: undefined }));
+  };
+
+  const handleDisabilityTypeToggle = (code) => {
+    const current = formData.q13b_disability_types || [];
+    const index = current.indexOf(code);
+    if (index !== -1) {
+      // Remove it
+      setFormData((prev) => ({
+        ...prev,
+        q13b_disability_types: current.filter((c) => c !== code)
+      }));
+    } else {
+      if (current.length >= 3) {
+        alert('आधिकारिक नियमावली अनुसार अधिकतम 3 दिव्यांगता प्रकार चुने जा सकते हैं! क्रम बदलने हेतु ◀ / ▶ या ▲ / ▼ तीरों का उपयोग करें।');
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        q13b_disability_types: [...current, code]
+      }));
+    }
+  };
+
+  const moveDisabilitySeverity = (index, direction) => {
+    const current = [...(formData.q13b_disability_types || [])];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= current.length) return;
+    const temp = current[index];
+    current[index] = current[targetIndex];
+    current[targetIndex] = temp;
+    setFormData((prev) => ({
+      ...prev,
+      q13b_disability_types: current
+    }));
+  };
+
   const handleCopyFromHead = () => {
     if (!headMember) return;
     setFormData((prev) => ({
@@ -315,7 +356,7 @@ export default function MemberModal({
         setActiveTab(1);
       } else if (validation.errors.q31_children_ever_born || validation.errors.q32_children_surviving || validation.errors.q33_children_born_last_year) {
         setActiveTab(tabs.findIndex(t => t.id === 'fertility'));
-      } else if (validation.errors.q36_mobile_number || validation.errors.q37_aadhaar_number || validation.errors.q38_voter_id_epic) {
+      } else if (validation.errors.q36_mobile_number || validation.errors.q37_aadhaar_number || validation.errors.q38_voter_id_epic || validation.errors.q39_passport_number) {
         setActiveTab(tabs.length - 1);
       }
       return;
@@ -1278,46 +1319,188 @@ export default function MemberModal({
                 </div>
 
                 {formData.q13a_disabled === 1 && (
-                  <div className="pt-1 space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <label className="block text-xs sm:text-sm font-bold text-slate-800">
-                      13(ख) दिव्यांगता के प्रकार (अधिकतम 3 चुनें, प्राथमिकता/गंभीरता अनुसार):
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {DISABILITY_CODES.map((d) => {
-                        const isSelected = (formData.q13b_disability_types || []).includes(d.code);
-                        return (
-                          <button
-                            key={d.code}
-                            type="button"
-                            onClick={() => {
-                              const current = formData.q13b_disability_types || [];
-                              if (isSelected) {
-                                setFormData({
-                                  ...formData,
-                                  q13b_disability_types: current.filter((c) => c !== d.code)
-                                });
-                              } else {
-                                if (current.length >= 3) {
-                                  alert('नियमावली अनुसार अधिकतम 3 दिव्यांगता प्रकार चुने जा सकते हैं!');
-                                  return;
-                                }
-                                setFormData({
-                                  ...formData,
-                                  q13b_disability_types: [...current, d.code]
-                                });
-                              }
-                            }}
-                            className={`p-2.5 rounded-xl text-xs sm:text-sm font-semibold border text-left transition-all flex items-center justify-between ${
-                              isSelected
-                                ? 'bg-[#0B3B60] text-white border-[#072F5F] font-bold shadow-sm'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <span>{d.code}. {d.label}</span>
-                            {isSelected && <Check className="w-4 h-4 text-amber-300 shrink-0" />}
-                          </button>
-                        );
-                      })}
+                  <div className="pt-2 space-y-3 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <label className="block text-xs sm:text-sm font-black text-slate-800">
+                        13(ख) प्रकार (अधिकतम 3 कोड, गंभीरता के क्रम में):
+                      </label>
+                      <span className="text-[11px] font-bold text-slate-500">
+                        प्रविष्ट कोड: <strong className="text-[#0B3B60]">{(formData.q13b_disability_types || []).length} / 3</strong>
+                      </span>
+                    </div>
+
+                    {/* OFFICIAL CENSUS 3-BOX PREVIEW: गंभीरता १, २, ३ */}
+                    <div className="bg-white p-3 rounded-xl border-2 border-blue-200/80 shadow-xs space-y-2">
+                      <div className="text-[11px] font-extrabold text-[#0B3B60] uppercase tracking-wider flex items-center justify-between">
+                        <span>जनगणना प्रपत्र 13(ख) प्रविष्टि बॉक्स</span>
+                        <span className="text-slate-400 font-normal font-mono">ख [ 1 ] [ 2 ] [ 3 ]</span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {[0, 1, 2].map((slotIdx) => {
+                          const selectedCode = (formData.q13b_disability_types || [])[slotIdx];
+                          const disObj = selectedCode ? DISABILITY_CODES.find((d) => d.code === Number(selectedCode)) : null;
+                          const severityLabels = ['१. सर्वाधिक गंभीर', '२. द्वितीय गंभीर', '३. तृतीय गंभीर'];
+                          const severityBadgeColors = [
+                            'bg-amber-100 text-amber-900 border-amber-300 font-black',
+                            'bg-blue-100 text-blue-900 border-blue-300 font-bold',
+                            'bg-slate-100 text-slate-800 border-slate-300 font-bold'
+                          ];
+
+                          return (
+                            <div
+                              key={slotIdx}
+                              className={`p-2 rounded-xl border flex flex-col justify-between transition-all min-h-[96px] ${
+                                disObj
+                                  ? 'bg-blue-50/80 border-blue-300 shadow-xs'
+                                  : 'bg-slate-50/60 border-dashed border-slate-300 text-slate-400'
+                              }`}
+                            >
+                              <div>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border inline-block ${severityBadgeColors[slotIdx]}`}>
+                                  {severityLabels[slotIdx]}
+                                </span>
+                                
+                                {disObj ? (
+                                  <div className="mt-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-6 h-6 rounded-md bg-[#0B3B60] text-white font-mono font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                        {disObj.code}
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-900 leading-tight line-clamp-2">
+                                        {disObj.label.replace(/^\d+\s*-\s*/, '')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-3 text-center">
+                                    <span className="text-base font-mono text-slate-300 font-bold">[ — ]</span>
+                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">रिक्त</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Slot Re-order Controls */}
+                              {disObj && (
+                                <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-blue-200/60">
+                                  <div className="flex items-center gap-1">
+                                    {slotIdx > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => moveDisabilitySeverity(slotIdx, -1)}
+                                        title="गंभीरता क्रम में ऊपर लाएं"
+                                        className="w-6 h-5 rounded bg-white hover:bg-blue-100 text-slate-800 border border-slate-300 active:scale-95 text-xs font-black flex items-center justify-center shadow-2xs"
+                                      >
+                                        ◀
+                                      </button>
+                                    )}
+                                    {slotIdx < (formData.q13b_disability_types || []).length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => moveDisabilitySeverity(slotIdx, 1)}
+                                        title="गंभीरता क्रम में नीचे करें"
+                                        className="w-6 h-5 rounded bg-white hover:bg-blue-100 text-slate-800 border border-slate-300 active:scale-95 text-xs font-black flex items-center justify-center shadow-2xs"
+                                      >
+                                        ▶
+                                      </button>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDisabilityTypeToggle(disObj.code)}
+                                    title="हटाएं"
+                                    className="p-1 rounded text-red-600 hover:bg-red-50 text-[11px] font-black"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed italic">
+                        💡 आधिकारिक नियम: यदि व्यक्ति में एक से अधिक दिव्यांगता है, तो जो सबसे अधिक गंभीर है उसे क्रम १ पर रखें, उसके बाद क्रम २ व ३ चुनें।
+                      </p>
+                    </div>
+
+                    {/* DISABILITY CODE SELECTION GRID */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        दिव्यांगता प्रकार की सूची (टैप करके चुनें या हटाएं):
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {DISABILITY_CODES.map((d) => {
+                          const currentList = formData.q13b_disability_types || [];
+                          const rankIndex = currentList.indexOf(d.code);
+                          const isSelected = rankIndex !== -1;
+                          const severityLabels = ['क्रम १ (सर्वाधिक)', 'क्रम २ (द्वितीय)', 'क्रम ३ (तृतीय)'];
+
+                          return (
+                            <div
+                              key={d.code}
+                              className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 ${
+                                isSelected
+                                  ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleDisabilityTypeToggle(d.code)}
+                                className="flex items-center gap-2 flex-1 text-left"
+                              >
+                                <span
+                                  className={`w-6 h-6 rounded-md font-mono text-xs font-black flex items-center justify-center shrink-0 ${
+                                    isSelected ? 'bg-white text-[#0B3B60]' : 'bg-slate-100 text-slate-700 border'
+                                  }`}
+                                >
+                                  {d.code}
+                                </span>
+                                <span className="text-xs sm:text-sm font-semibold leading-tight">
+                                  {d.label.replace(/^\d+\s*-\s*/, '')}
+                                </span>
+                              </button>
+
+                              {isSelected && (
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] bg-amber-400 text-slate-900 font-extrabold px-1.5 py-0.5 rounded shadow-xs whitespace-nowrap">
+                                    {severityLabels[rankIndex]}
+                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    {rankIndex > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          moveDisabilitySeverity(rankIndex, -1);
+                                        }}
+                                        title="गंभीरता ऊपर लाएं"
+                                        className="w-5 h-4 bg-white/20 hover:bg-white/30 rounded text-[9px] font-black text-white flex items-center justify-center"
+                                      >
+                                        ▲
+                                      </button>
+                                    )}
+                                    {rankIndex < currentList.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          moveDisabilitySeverity(rankIndex, 1);
+                                        }}
+                                        title="गंभीरता नीचे करें"
+                                        className="w-5 h-4 bg-white/20 hover:bg-white/30 rounded text-[9px] font-black text-white flex items-center justify-center"
+                                      >
+                                        ▼
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2140,6 +2323,62 @@ export default function MemberModal({
                   )}
                 </div>
               ) : null}
+
+              {/* Q.39 भारतीय पासपोर्ट (हो तो संख्या) */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                      प्र. 39 भारतीय पासपोर्ट (हो तो संख्या दर्ज करें)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      आधिकारिक जनगणना निर्देश: यदि व्यक्ति के पास वैध भारतीय पासपोर्ट उपलब्ध है तो 8-वर्णों की संख्या दर्ज करें।
+                    </p>
+                  </div>
+                  {formData.q39_passport_number && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, q39_passport_number: '' }))}
+                      className="text-[11px] text-red-600 font-bold hover:underline"
+                    >
+                      पासपोर्ट हटाएं
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      maxLength={8}
+                      value={formData.q39_passport_number || ''}
+                      onChange={(e) => handlePassportChange(e.target.value)}
+                      placeholder="उदा. Z1234567 (1 अक्षर + 7 अंक)"
+                      className={`w-full px-3 py-2.5 border rounded-xl text-xs sm:text-sm font-mono uppercase font-black bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] tracking-widest ${
+                        errors.q39_passport_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
+                      }`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, q39_passport_number: '' }))}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                      !formData.q39_passport_number
+                        ? 'bg-slate-100 text-slate-700 border-slate-300 font-extrabold'
+                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    पासपोर्ट नहीं है
+                  </button>
+                </div>
+
+                {errors.q39_passport_number && (
+                  <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.q39_passport_number}</span>
+                  </p>
+                )}
+              </div>
 
               {/* Q.40 ड्राइविंग लाइसेंस (16+ वर्ष) */}
               {age >= 16 ? (

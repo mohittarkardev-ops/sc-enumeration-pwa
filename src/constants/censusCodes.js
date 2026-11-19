@@ -45,15 +45,17 @@ export const SOCIAL_CATEGORY_CODES = [
 ];
 
 export const DISABILITY_CODES = [
-  { code: 1, label: "1 - देखने में" },
-  { code: 2, label: "2 - सुनने में" },
-  { code: 3, label: "3 - बोलने में" },
-  { code: 4, label: "4 - चलने-फिरने में" },
-  { code: 5, label: "5 - बौद्धिक" },
-  { code: 6, label: "6 - मानसिक रोग" },
-  { code: 7, label: "7 - एसिड अटैक" },
-  { code: 8, label: "8 - दीर्घ. तंत्रिका रोग" },
-  { code: 9, label: "9 - रक्त विकार" }
+  { code: 1, label: "1 - देखने में (दृष्टिबाधित)" },
+  { code: 2, label: "2 - सुनने में (श्रवणबाधित)" },
+  { code: 3, label: "3 - बोलने में (वाकबाधित)" },
+  { code: 4, label: "4 - चलने-फिरने में (चलनबाधित)" },
+  { code: 5, label: "5 - बौद्धिक अक्षमता (Intellectual)" },
+  { code: 6, label: "6 - मानसिक रोग (Mental Illness)" },
+  { code: 7, label: "7 - एसिड अटैक पीड़ित" },
+  { code: 8, label: "8 - दीर्घकालिक तंत्रिका रोग" },
+  { code: 9, label: "9 - रक्त विकार (Blood Disorder)" },
+  { code: 10, label: "10 - बहु-दिव्यांगता (Multiple Disabilities)" },
+  { code: 11, label: "11 - अन्य दिव्यांगता (Any Other)" }
 ];
 
 export const EDUCATION_STATUS_CODES = [
