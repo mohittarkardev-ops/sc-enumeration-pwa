@@ -793,6 +793,29 @@ export default function CensusProformaView({
           )}
         </div>
       </div>
+
+      {/* ── Print Specific CSS (Guaranteed Landscape on A4) ── */}
+      <style>{`
+        @page {
+          size: A4 landscape;
+          margin: 6mm;
+        }
+        @media print {
+          html, body {
+            background-color: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #census-print-container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            border: 2px solid black !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

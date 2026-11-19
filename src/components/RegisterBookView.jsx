@@ -466,7 +466,7 @@ function HouseholdProformaSheet({
                 <th className="border-r border-slate-700 p-1 w-11">Q.28 कारण</th>
                 <th className="border-r border-slate-700 p-1 w-12">Q.29 अवधि</th>
                 <th className="border-r border-slate-700 p-1 min-w-[85px]">Q.30 स्थायी पता</th>
-                <th className="border-r border-slate-700 p-1 w-20">Q.31-33 प्रजनन [31, 32, 33]</th>
+                <th className="border-r border-slate-700 p-1 w-20">Q.31-33 प्रजनन [31 जीवित, 32 कुल]</th>
                 <th className="border-r border-slate-700 p-1 w-14">Q.34 कोविड</th>
                 <th className="border-r border-slate-700 p-1 w-11">Q.35 बैंक</th>
                 <th className="border-r border-slate-700 p-1 w-22">Q.36 मोबाइल (10)</th>
@@ -596,19 +596,19 @@ function HouseholdProformaSheet({
                       )}
                     </td>
 
-                    {/* Q.31-33 Fertility */}
+                    {/* Q.31-33 Fertility: 31 Surviving (q32), 32 Ever Born (q31), 33 Last 1 Yr */}
                     <td className="border-r border-slate-700 p-1 text-[9px]">
                       {m.q3_gender === 2 && Number(m.q5_marital_status) >= 2 ? (
                         <div className="space-y-0.5">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold">31:</span>
-                            <DigitBoxes value={m.q31_children_ever_born_female || 0} count={1} />
-                            <DigitBoxes value={m.q31_children_ever_born_male || 0} count={1} />
-                          </div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold">32:</span>
+                          <div className="flex items-center justify-between gap-1" title="प्र. 31 वर्तमान में जीवित संतानें (कन्या/बालक)">
+                            <span className="font-bold text-slate-700">31(जी):</span>
                             <DigitBoxes value={m.q32_children_surviving_female || 0} count={1} />
                             <DigitBoxes value={m.q32_children_surviving_male || 0} count={1} />
+                          </div>
+                          <div className="flex items-center justify-between gap-1" title="प्र. 32 कभी जीवित जन्मी कुल संतानें (कन्या/बालक)">
+                            <span className="font-bold text-slate-700">32(कुल):</span>
+                            <DigitBoxes value={m.q31_children_ever_born_female || 0} count={1} />
+                            <DigitBoxes value={m.q31_children_ever_born_male || 0} count={1} />
                           </div>
                         </div>
                       ) : (
@@ -1033,12 +1033,18 @@ export default function RegisterBookView({ settings, onBack }) {
         )}
       </main>
 
-      {/* ── Print Specific CSS ── */}
+      {/* ── Print Specific CSS (Guaranteed Landscape on A4) ── */}
       <style>{`
+        @page {
+          size: A4 landscape;
+          margin: 6mm;
+        }
         @media print {
-          body {
+          html, body {
             background-color: white !important;
             color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .proforma-sheet {
             page-break-after: always;
@@ -1048,6 +1054,8 @@ export default function RegisterBookView({ settings, onBack }) {
             margin-bottom: 0 !important;
             border-width: 2px !important;
             border-color: black !important;
+            width: 100% !important;
+            max-width: none !important;
           }
         }
       `}</style>

@@ -1184,6 +1184,7 @@ export default function MemberModal({
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
                           पिता की जन्म तिथि (DD/MM/YYYY)
+                          {formData.q11_father_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
                         <input
                           type="text"
@@ -1197,10 +1198,17 @@ export default function MemberModal({
                       </div>
                     </div>
 
+                    {formData.q11_father_alive === false && (
+                      <div className="bg-slate-100 p-2 rounded-lg text-[11px] text-slate-600 border border-slate-200">
+                        दिवंगत पिता के लिए जन्म तिथि व जन्म स्थान ज्ञात न होने पर खाली छोड़ सकते हैं।
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
                           जन्म स्थान (राज्य/जिला/देश)
+                          {formData.q11_father_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
                         <input
                           type="text"
@@ -1366,6 +1374,7 @@ export default function MemberModal({
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
                           माता की जन्म तिथि (DD/MM/YYYY)
+                          {formData.q12_mother_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
                         <input
                           type="text"
@@ -1379,10 +1388,17 @@ export default function MemberModal({
                       </div>
                     </div>
 
+                    {formData.q12_mother_alive === false && (
+                      <div className="bg-slate-100 p-2 rounded-lg text-[11px] text-slate-600 border border-slate-200">
+                        दिवंगत माता के लिए जन्म तिथि व जन्म स्थान ज्ञात न होने पर खाली छोड़ सकते हैं।
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
                           जन्म स्थान (राज्य/जिला/देश)
+                          {formData.q12_mother_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
                         <input
                           type="text"

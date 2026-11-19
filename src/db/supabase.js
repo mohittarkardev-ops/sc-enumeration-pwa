@@ -200,6 +200,35 @@ export const checkDatabaseConnection = async (customUrl, customKey) => {
 };
 
 /**
+ * Resiliently upserts a member record to Supabase.
+ * If the remote PostgreSQL table lacks optional columns from recent migrations,
+ * it catches the 'column not found' schema error, strips that column, and retries.
+ */
+async function safeUpsertMemberRecord(supabase, initialPayload) {
+  let payload = { ...initialPayload };
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { error } = await supabase
+      .from('members')
+      .upsert(payload, { onConflict: 'local_id' });
+
+    if (!error) return { success: true };
+
+    const match =
+      error.message?.match(/Could not find the '([^']+)' column/i) ||
+      error.message?.match(/column "?([^"\s']+)"? of relation "?members"? does not exist/i);
+
+    if (match && match[1] && payload[match[1]] !== undefined) {
+      console.warn(`Supabase schema resilience: dropping missing remote column '${match[1]}' and retrying member upsert.`);
+      delete payload[match[1]];
+      continue;
+    }
+
+    return { success: false, error };
+  }
+  return { success: false, error: new Error('Maximum schema fallback attempts exceeded') };
+}
+
+/**
  * 1. PUSH: Uploads pending local records to remote Supabase
  */
 export const pushPendingLocalData = async (supabase) => {
@@ -341,11 +370,9 @@ export const pushPendingLocalData = async (supabase) => {
         q40_driving_license: m.q40_driving_license ? Number(m.q40_driving_license) : null
       };
 
-      const { error: mError } = await supabase
-        .from('members')
-        .upsert(memberPayload, { onConflict: 'local_id' });
+      const { success: mSuccess, error: mError } = await safeUpsertMemberRecord(supabase, memberPayload);
 
-      if (mError) {
+      if (!mSuccess) {
         console.error('सदस्य अपलोड त्रुटि:', mError);
         errors.push(`सदस्य ${m.q1_name}: ${mError.message}`);
       } else {
@@ -445,11 +472,9 @@ export const pushPendingLocalData = async (supabase) => {
         q40_driving_license: m.q40_driving_license ? Number(m.q40_driving_license) : null
       };
 
-      const { error: mError2 } = await supabase
-        .from('members')
-        .upsert(memberPayload, { onConflict: 'local_id' });
+      const { success: mSuccess2, error: mError2 } = await safeUpsertMemberRecord(supabase, memberPayload);
 
-      if (mError2) {
+      if (!mSuccess2) {
         console.error('अनाथ सदस्य अपलोड त्रुटि:', mError2);
         errors.push(`अनाथ सदस्य ${m.q1_name}: ${mError2.message}`);
       } else {

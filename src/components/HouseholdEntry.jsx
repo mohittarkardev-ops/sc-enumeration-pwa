@@ -280,13 +280,18 @@ export default function HouseholdEntry({
       return;
     }
 
-    let cleanSe = sanitizeAlphanumeric(seId).toUpperCase();
-    if (!cleanSe) {
+    let rawSe = sanitizeAlphanumeric(seId).toUpperCase();
+    if (!rawSe) {
       setFormError('कृपया स्व-गणना आईडी (SE ID) दर्ज करें।');
       return;
     }
-    if (!cleanSe.startsWith('P')) {
-      cleanSe = 'P' + cleanSe;
+    // Standardize: ensure single 'P' prefix
+    const numericPart = rawSe.replace(/^P+/i, '');
+    const cleanSe = 'P' + numericPart;
+
+    if (cleanSe.length < 7 || cleanSe.length > 16) {
+      setFormError(`अमान्य स्व-गणना आईडी (SE ID: ${cleanSe})। कृपया आधिकारिक संदर्भ पर्ची से सही SE ID दर्ज करें (उदा. P123456789)।`);
+      return;
     }
 
     const householdLocalId = currentLocalId || ('hh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));

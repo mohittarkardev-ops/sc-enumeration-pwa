@@ -168,7 +168,21 @@ export default function QuickMemberModal({
     }
 
     const finalAge = age !== '' ? parseInt(age, 10) : 0;
-    const cleanAadhaar = aadhaarNumber === 'नहीं' ? 'नहीं' : sanitizeNumeric(aadhaarNumber).slice(0, 12);
+
+    // Strict Aadhaar Validation: Must be exactly 12 digits, 'नहीं', or empty
+    let cleanAadhaar = '';
+    if (aadhaarNumber === 'नहीं' || aadhaarNumber === 'उपलब्ध नहीं') {
+      cleanAadhaar = 'नहीं';
+    } else if (aadhaarNumber) {
+      const cleanDigits = sanitizeNumeric(aadhaarNumber);
+      if (cleanDigits.length > 0 && cleanDigits.length < 12) {
+        setErrorMsg(`आधार संख्या अधूरी है (${cleanDigits.length}/12 अंक)। कृपया पूरे 12 अंक दर्ज करें या 'आधार उपलब्ध नहीं' चुनें।`);
+        return;
+      }
+      if (cleanDigits.length === 12) {
+        cleanAadhaar = cleanDigits;
+      }
+    }
 
     const memberData = {
       ...(existingMember || {}),
