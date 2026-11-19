@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS members (
     q11_father_dob TEXT,
     q11_father_birthplace TEXT,
     q11_father_alive BOOLEAN,
+    q11_father_religion INTEGER,
     
     -- Q.12: माता का विवरण
     q12_mother_in_hh BOOLEAN DEFAULT FALSE,
@@ -100,6 +101,7 @@ CREATE TABLE IF NOT EXISTS members (
     q12_mother_dob TEXT,
     q12_mother_birthplace TEXT,
     q12_mother_alive BOOLEAN,
+    q12_mother_religion INTEGER,
     
     -- Q.13: दिव्यांगता
     q13a_disabled INTEGER NOT NULL DEFAULT 2 CHECK (q13a_disabled IN (1, 2)), -- 1-हाँ, 2-नहीं

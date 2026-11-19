@@ -48,7 +48,89 @@ export const sanitizeAlphanumeric = (input) => {
     .toUpperCase();
 };
 
-// --- 2. VALIDATION HELPERS ---
+// --- 2. DATE OF BIRTH & AGE HELPERS ---
+
+/**
+ * Auto-formats numeric date typing into DD/MM/YYYY format
+ * As the user types digits on the numeric keyboard: '15081995' -> '15/08/1995'
+ */
+export const formatDobInput = (val) => {
+  if (!val) return '';
+  const digits = val.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+};
+
+/**
+ * Parses and validates DD/MM/YYYY numeric date format
+ * Returns { isValid, empty, calculatedAge, isoDate, formattedDob, message }
+ */
+export const parseAndValidateDob = (dobString) => {
+  if (!dobString || dobString.trim() === '') {
+    return { isValid: true, empty: true, calculatedAge: null };
+  }
+
+  const clean = dobString.trim();
+  const parts = clean.split(/[\/\-\.]/);
+  
+  if (parts.length !== 3 || parts[2].length < 4) {
+    return { isValid: false, message: 'जन्म तिथि DD/MM/YYYY प्रारूप में पूरी लिखें (उदा. 15/08/1995)' };
+  }
+
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+
+  if (isNaN(day) || isNaN(month) || isNaN(year)) {
+    return { isValid: false, message: 'अमान्य जन्म तिथि' };
+  }
+
+  if (month < 1 || month > 12) {
+    return { isValid: false, message: 'महीना 01 से 12 के मध्य होना चाहिए' };
+  }
+
+  const currentYear = new Date().getFullYear();
+  if (year < 1900 || year > currentYear) {
+    return { isValid: false, message: `वर्ष 1900 से ${currentYear} के मध्य होना चाहिए` };
+  }
+
+  // Days in month validation (accounting for leap years)
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if (day < 1 || day > daysInMonth) {
+    return { isValid: false, message: `${month}वें महीने में दिन 01 से ${daysInMonth} तक ही हो सकते हैं` };
+  }
+
+  const birthDate = new Date(year, month - 1, day);
+  const today = new Date();
+
+  if (birthDate > today) {
+    return { isValid: false, message: 'जन्म तिथि आज की तारीख से आगे (भविष्य) की नहीं हो सकती' };
+  }
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  if (age < 0 || age > 125) {
+    return { isValid: false, message: 'आयु 0 से 125 वर्ष के मध्य होनी चाहिए' };
+  }
+
+  const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const formattedDob = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+
+  return {
+    isValid: true,
+    empty: false,
+    calculatedAge: age,
+    isoDate,
+    formattedDob
+  };
+};
+
+// --- 3. IDENTIFIERS VALIDATIONS ---
 
 /**
  * Validates Indian Mobile Number (10 digits starting with 6, 7, 8, or 9)
@@ -88,7 +170,6 @@ export const validateAadhaarNumber = (aadhaar) => {
 
 /**
  * Validates Election Commission Voter ID (EPIC)
- * Standard: 3 letters prefix + 7 digits (e.g. ABC1234567) or standard alphanumeric
  */
 export const validateVoterId = (epic) => {
   if (!epic || epic.trim() === '') return { isValid: true };
@@ -99,9 +180,8 @@ export const validateVoterId = (epic) => {
   return { isValid: true, cleanValue: clean };
 };
 
-/**
- * Comprehensive Member Validation (Cross-field consistency check)
- */
+// --- 4. COMPREHENSIVE MEMBER VALIDATION ---
+
 export const validateMemberRecord = (member, existingMembers = [], currentIndex = null) => {
   const errors = {};
 
@@ -137,12 +217,11 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
     errors.q4b_age = 'आयु 0 से 125 वर्ष के मध्य होनी चाहिए';
   }
 
-  // If DOB provided, check consistency
-  if (member.q4a_dob) {
-    const dob = new Date(member.q4a_dob);
-    const today = new Date();
-    if (dob > today) {
-      errors.q4a_dob = 'जन्म तिथि भविष्य की नहीं हो सकती';
+  // If DOB provided, check validity
+  if (member.q4a_dob && member.q4a_dob.trim() !== '') {
+    const dobCheck = parseAndValidateDob(member.q4a_dob);
+    if (!dobCheck.isValid) {
+      errors.q4a_dob = dobCheck.message;
     }
   }
 
@@ -160,7 +239,7 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
     }
 
     // Q.7 Spouse Serial Number Cross-check
-    if (member.q7_spouse_serial_no) {
+    if (member.q7_spouse_serial_no && member.q7_spouse_serial_no !== '00') {
       const spouseSNo = Number(member.q7_spouse_serial_no);
       if (spouseSNo === member.serial_no) {
         errors.q7_spouse_serial_no = 'पति/पत्नी का क्र.सं. स्वयं का क्र.सं. नहीं हो सकता';

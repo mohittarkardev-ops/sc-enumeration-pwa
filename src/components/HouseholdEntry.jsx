@@ -106,13 +106,36 @@ export default function HouseholdEntry({
   };
 
   const handleSaveMemberFromModal = (memberData) => {
+    let updated = [...members];
     if (editingMemberIndex !== null) {
-      const updated = [...members];
       updated[editingMemberIndex] = memberData;
-      setMembers(updated);
     } else {
-      setMembers([...members, memberData]);
+      updated.push(memberData);
     }
+
+    // SMART RECIPROCAL SPOUSE CROSS-LINKING:
+    const currentSNo = memberData.serial_no;
+    const spouseSNo = Number(memberData.q7_spouse_serial_no);
+
+    // If this member selected another member as spouse, reciprocally update that spouse's record:
+    if (spouseSNo && spouseSNo > 0 && spouseSNo <= updated.length && spouseSNo !== currentSNo) {
+      const spouseIdx = updated.findIndex((m) => m.serial_no === spouseSNo);
+      if (spouseIdx !== -1) {
+        updated[spouseIdx] = {
+          ...updated[spouseIdx],
+          q5_marital_status: 2, // Married
+          q7_spouse_serial_no: currentSNo.toString()
+        };
+      }
+    }
+
+    // If Member #1 (Head) is married and Member #2 has relationship = 2 (पति या पत्नी)
+    if (updated.length >= 2 && Number(updated[0].q5_marital_status) === 2 && Number(updated[1].q2_relationship) === 2) {
+      updated[0] = { ...updated[0], q7_spouse_serial_no: '2' };
+      updated[1] = { ...updated[1], q7_spouse_serial_no: '1' };
+    }
+
+    setMembers(updated);
     setIsMemberModalOpen(false);
   };
 

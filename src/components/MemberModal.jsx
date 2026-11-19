@@ -7,8 +7,21 @@ import {
   ChevronLeft,
   ChevronDown,
   AlertCircle,
-  Info
+  Info,
+  Lock,
+  Sparkles,
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
+import { 
+  sanitizeName, 
+  sanitizeNumeric, 
+  sanitizeText, 
+  sanitizeAlphanumeric, 
+  validateMemberRecord,
+  formatDobInput,
+  parseAndValidateDob
+} from '../utils/validation';
 import {
   RELATIONSHIP_CODES,
   GENDER_CODES,
@@ -27,13 +40,7 @@ import {
   MIGRATION_REASON_CODES
 } from '../constants/censusCodes';
 import { INDIAN_STATES } from '../constants/indiaLocations';
-import { 
-  sanitizeName, 
-  sanitizeNumeric, 
-  sanitizeText, 
-  sanitizeAlphanumeric, 
-  validateMemberRecord 
-} from '../utils/validation';
+
 
 export default function MemberModal({
   isOpen,
@@ -46,6 +53,8 @@ export default function MemberModal({
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState({});
+
+  const [isAgeLocked, setIsAgeLocked] = useState(false);
 
   const initialData = {
     serial_no: serialNo,
@@ -60,19 +69,31 @@ export default function MemberModal({
     q8_nationality: 'भारत',
     q9_religion: 1,
     q9_religion_other: '',
+    q10a_sc: 2,
+    q10b_st: 2,
     q10a_sc_st: 3,
     q10b_caste_code: '',
     q10c_caste_name: '',
     q11_father_in_hh: false,
     q11_father_serial_no: '',
     q11_father_name: '',
+    q11_father_alive: true,
+    q11_father_dob: '',
+    q11_father_birthplace: '',
+    q11_father_religion: 1,
     q12_mother_in_hh: false,
     q12_mother_serial_no: '',
     q12_mother_name: '',
+    q12_mother_alive: true,
+    q12_mother_dob: '',
+    q12_mother_birthplace: '',
+    q12_mother_religion: 1,
     q13a_disabled: 2,
     q13b_disability_types: [],
     q14a_mother_tongue: 'हिन्दी',
     q14b_other_languages: '',
+    q14b_other_lang1: '',
+    q14c_other_lang2: '',
     q15a_literacy: 1,
     q15b_digital_literate: 1,
     q16_education_status: 1,
@@ -120,19 +141,41 @@ export default function MemberModal({
       setActiveTab(0);
       setErrors({});
       if (existingMember) {
-        setFormData({ ...initialData, ...existingMember });
+        const merged = { ...initialData, ...existingMember };
+        // Determine SC/ST radio state
+        merged.q10a_sc = existingMember.q10a_sc || (existingMember.q10a_sc_st === 1 ? 1 : 2);
+        merged.q10b_st = existingMember.q10b_st || (existingMember.q10a_sc_st === 2 ? 1 : 2);
+        
+        // Check if DOB is present and valid to lock age
+        if (merged.q4a_dob && merged.q4a_dob.trim() !== '') {
+          const dobRes = parseAndValidateDob(merged.q4a_dob);
+          setIsAgeLocked(dobRes.isValid && dobRes.calculatedAge !== null);
+        } else {
+          setIsAgeLocked(false);
+        }
+        setFormData(merged);
       } else {
         const newData = { ...initialData, serial_no: serialNo };
+        // Smart prefill for Member #2 (Spouse)
+        if (serialNo === 2 && headMember) {
+          newData.q2_relationship = 2; // पति या पत्नी
+          newData.q3_gender = headMember.q3_gender === 1 ? 2 : 1; // विपरीत लिंग
+          newData.q5_marital_status = 2; // विवाहित
+          newData.q7_spouse_serial_no = '1'; // मुखिया से स्वतः लिंक
+        }
         if (serialNo > 1 && headMember) {
           newData.q9_religion = headMember.q9_religion || 1;
           newData.q9_religion_other = headMember.q9_religion_other || '';
           newData.q10a_sc_st = headMember.q10a_sc_st || 3;
+          newData.q10a_sc = headMember.q10a_sc || (headMember.q10a_sc_st === 1 ? 1 : 2);
+          newData.q10b_st = headMember.q10b_st || (headMember.q10a_sc_st === 2 ? 1 : 2);
           newData.q10b_caste_code = headMember.q10b_caste_code || '';
           newData.q10c_caste_name = headMember.q10c_caste_name || '';
           newData.q14a_mother_tongue = headMember.q14a_mother_tongue || 'हिन्दी';
           newData.q30_permanent_address_same = true;
           newData.q30_permanent_address = headMember.q30_permanent_address || '';
         }
+        setIsAgeLocked(false);
         setFormData(newData);
       }
     }
@@ -156,31 +199,60 @@ export default function MemberModal({
     if (errors.q1_name) setErrors((prev) => ({ ...prev, q1_name: undefined }));
   };
 
+  const handleRelationshipChange = (code) => {
+    const relCode = Number(code);
+    setFormData((prev) => {
+      const updated = { ...prev, q2_relationship: relCode };
+      // Smart Auto-fill: If relationship is Spouse (02) and member is not Head
+      if (relCode === 2 && prev.serial_no > 1) {
+        updated.q5_marital_status = 2; // विवाहित
+        updated.q7_spouse_serial_no = '1'; // मुखिया
+        if (headMember) {
+          updated.q3_gender = headMember.q3_gender === 1 ? 2 : 1;
+        }
+      }
+      return updated;
+    });
+    if (errors.q2_relationship) setErrors((prev) => ({ ...prev, q2_relationship: undefined }));
+  };
+
   const handleAgeChange = (val) => {
+    if (isAgeLocked) return; // Prevent manual change when calculated from valid DOB
     const clean = sanitizeNumeric(val);
     const num = clean === '' ? '' : Math.min(125, parseInt(clean, 10));
     setFormData((prev) => ({ ...prev, q4b_age: num }));
     if (errors.q4b_age) setErrors((prev) => ({ ...prev, q4b_age: undefined }));
   };
 
-  const handleDobChange = (e) => {
-    const dob = e.target.value;
-    let calculatedAge = formData.q4b_age;
-    if (dob) {
-      const birthDate = new Date(dob);
-      const today = new Date();
-      let diffYears = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        diffYears--;
+  // Fast Numeric Keypad DOB input handler with auto-formatting DD/MM/YYYY and automatic Age lock
+  const handleNumericDobInput = (rawVal) => {
+    const formatted = formatDobInput(rawVal);
+    
+    if (formatted.length === 10) {
+      const res = parseAndValidateDob(formatted);
+      if (res.isValid && res.calculatedAge !== null) {
+        setFormData((prev) => ({
+          ...prev,
+          q4a_dob: res.formattedDob,
+          q4b_age: res.calculatedAge
+        }));
+        setIsAgeLocked(true);
+        if (errors.q4a_dob || errors.q4b_age) {
+          setErrors((prev) => ({ ...prev, q4a_dob: undefined, q4b_age: undefined }));
+        }
+      } else {
+        setFormData((prev) => ({ ...prev, q4a_dob: formatted }));
+        setErrors((prev) => ({ ...prev, q4a_dob: res.message }));
+        setIsAgeLocked(false);
       }
-      if (diffYears >= 0 && diffYears < 125) {
-        calculatedAge = diffYears;
-      }
-    }
-    setFormData((prev) => ({ ...prev, q4a_dob: dob, q4b_age: calculatedAge }));
-    if (errors.q4a_dob || errors.q4b_age) {
-      setErrors((prev) => ({ ...prev, q4a_dob: undefined, q4b_age: undefined }));
+    } else if (formatted.trim() === '') {
+      // DOB erased: Unlock age for direct manual entry
+      setFormData((prev) => ({ ...prev, q4a_dob: '' }));
+      setIsAgeLocked(false);
+      if (errors.q4a_dob) setErrors((prev) => ({ ...prev, q4a_dob: undefined }));
+    } else {
+      setFormData((prev) => ({ ...prev, q4a_dob: formatted }));
+      setIsAgeLocked(false);
     }
   };
 
@@ -334,11 +406,11 @@ export default function MemberModal({
         {/* Form Body - Soft Rounded Cards */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 text-sm space-y-4 bg-slate-50 momentum-scroll scroll-smooth">
           
-          {/* TAB 0: जनसांख्यिकी (प्र. 1 से 9) */}
+                    {/* TAB 0: जनसांख्यिकी (प्र. 1 से 9) */}
           {activeTab === 0 && (
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               {/* Q.1 व्यक्ति का नाम */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs sm:text-sm font-bold text-slate-900">
                     प्र. 1 व्यक्ति का नाम <span className="text-red-600 font-bold">*</span>
@@ -352,34 +424,34 @@ export default function MemberModal({
                   value={formData.q1_name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="व्यक्ति का वास्तविक नाम दर्ज करें"
-                  className={`w-full px-3 py-2 border rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                     errors.q1_name ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'
                   }`}
                   autoFocus
                 />
                 <p className="text-xs text-slate-500 flex items-center gap-1">
-                  <Info className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span>आधिकारिक निर्देश: व्यक्ति का पूरा नाम बिना किसी उपाधि के लिखें।</span>
+                  <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>आधिकारिक निर्देश: व्यक्ति का पूरा नाम बिना किसी उपाधि या उपनाम के लिखें।</span>
                 </p>
                 {errors.q1_name && (
-                  <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <p className="text-xs sm:text-sm font-semibold text-red-600 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errors.q1_name}</span>
                   </p>
                 )}
               </div>
 
               {/* Q.2 मुखिया से सम्बन्ध */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">
                   प्र. 2 परिवार के मुखिया से सम्बन्ध (कोड 01-32) <span className="text-red-600 font-bold">*</span>
                 </label>
                 <div className="relative">
                   <select
                     value={formData.q2_relationship}
-                    onChange={(e) => setFormData({ ...formData, q2_relationship: Number(e.target.value) })}
+                    onChange={(e) => handleRelationshipChange(e.target.value)}
                     disabled={formData.serial_no === 1}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {RELATIONSHIP_CODES.map((r) => (
                       <option key={r.code} value={r.code}>
@@ -387,18 +459,18 @@ export default function MemberModal({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                 </div>
                 {errors.q2_relationship && (
-                  <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <p className="text-xs sm:text-sm font-semibold text-red-600 flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errors.q2_relationship}</span>
                   </p>
                 )}
               </div>
 
               {/* Q.3 लिंग */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1.5">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">
                   प्र. 3 लिंग <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -420,43 +492,75 @@ export default function MemberModal({
                 </div>
               </div>
 
-              {/* Q.4 जन्म तिथि और आयु */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <div className="grid grid-cols-2 gap-2.5">
+              {/* Q.4 जन्म तिथि और आयु - FAST NUMERIC KEYBOARD + AUTO AGE LOCK */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                  
+                  {/* 4(क) Fast Numeric DOB Input */}
                   <div>
                     <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                      प्र. 4(क) जन्म तिथि (उपलब्ध हो तो)
+                      प्र. 4(क) जन्म तिथि (DD/MM/YYYY)
                     </label>
-                    <input
-                      type="date"
-                      value={formData.q4a_dob}
-                      onChange={handleDobChange}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-medium focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={formData.q4a_dob || ''}
+                        onChange={(e) => handleNumericDobInput(e.target.value)}
+                        placeholder="DD/MM/YYYY"
+                        className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base font-mono font-bold bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
+                          errors.q4a_dob ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-500 block mt-1">
+                      संख्यात्मक कीबोर्ड से 8 अंक (दिन/माह/वर्ष) लिखें
+                    </span>
                   </div>
 
+                  {/* 4(ख) आयु - Read-only when calculated from DOB */}
                   <div>
-                    <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
-                      प्र. 4(ख) आयु पूर्ण वर्षों में <span className="text-red-600 font-bold">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                        प्र. 4(ख) आयु (पूर्ण वर्ष) <span className="text-red-600 font-bold">*</span>
+                      </label>
+                      {isAgeLocked && (
+                        <span className="text-[11px] text-[#0B3B60] font-extrabold flex items-center gap-0.5">
+                          <Lock className="w-3 h-3 text-[#0B3B60]" />
+                          लॉक्ड
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="text"
                       inputMode="numeric"
                       value={formData.q4b_age}
+                      readOnly={isAgeLocked}
                       onChange={(e) => handleAgeChange(e.target.value)}
-                      placeholder="वर्ष (1 से कम = 0)"
-                      className={`w-full px-3 py-2 border rounded-lg text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
-                        errors.q4b_age ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'
+                      placeholder={isAgeLocked ? 'DOB से परिकलित' : 'पूर्ण आयु (उदा. 35)'}
+                      className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base font-black ${
+                        isAgeLocked
+                          ? 'bg-blue-50 text-[#0B3B60] border-blue-300 cursor-not-allowed shadow-inner'
+                          : errors.q4b_age ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]'
                       }`}
                     />
+                    <span className="text-[11px] text-slate-500 block mt-1">
+                      {isAgeLocked ? 'DOB से स्वतः परिकलित • बदलने हेतु DOB हटाएं' : '1 वर्ष से कम शिशु हेतु 0 लिखें'}
+                    </span>
                   </div>
+
                 </div>
-                <p className="text-xs text-slate-500 flex items-center gap-1">
-                  <Info className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span>आधिकारिक निर्देश: आयु पूर्ण वर्षों में लिखें, 1 वर्ष से कम शिशु हेतु 0 दर्ज करें।</span>
-                </p>
+
+                {errors.q4a_dob && (
+                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.q4a_dob}</span>
+                  </p>
+                )}
+
                 {errors.q4b_age && (
-                  <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-1">
+                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{errors.q4b_age}</span>
                   </p>
@@ -464,15 +568,22 @@ export default function MemberModal({
               </div>
 
               {/* Q.5 वैवाहिक स्थिति */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">
                   प्र. 5 वर्तमान वैवाहिक स्थिति <span className="text-red-600 font-bold">*</span>
                 </label>
                 <div className="relative">
                   <select
                     value={formData.q5_marital_status}
-                    onChange={(e) => setFormData({ ...formData, q5_marital_status: Number(e.target.value) })}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                    onChange={(e) => {
+                      const newStatus = Number(e.target.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        q5_marital_status: newStatus,
+                        q7_spouse_serial_no: newStatus === 2 ? prev.q7_spouse_serial_no : ''
+                      }));
+                    }}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {MARITAL_STATUS_CODES.map((m) => (
                       <option key={m.code} value={m.code}>
@@ -480,73 +591,138 @@ export default function MemberModal({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                 </div>
               </div>
 
-              {/* Q.6 & Q.7: यदि विवाहित हैं */}
+              {/* Q.6 & Q.7: SMART SPOUSE & MARRIAGE LOGIC */}
               {isMarriedOrEver && (
-                <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 shadow-sm space-y-2.5">
-                  <div className="text-[11px] font-bold text-amber-900 border-b border-amber-200 pb-1">
-                    विवाहित सदस्यों हेतु (प्र. 6 एवं प्र. 7):
+                <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-xl border border-amber-200 shadow-sm space-y-3">
+                  <div className="text-xs sm:text-sm font-bold text-amber-950 border-b border-amber-200/80 pb-1.5 flex items-center justify-between">
+                    <span>विवाहित / कभी विवाहित सदस्यों हेतु विवरण (प्र. 6 एवं प्र. 7):</span>
+                    <span className="text-[11px] bg-amber-100 px-2 py-0.5 rounded font-mono">Q.6 - Q.7</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
+
+                  <div className="space-y-3">
+                    {/* Q.6 विवाह के समय आयु */}
                     <div>
                       <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
-                        प्र. 6 विवाह के समय आयु (वर्ष) <span className="text-red-600">*</span>
+                        प्र. 6 विवाह के समय आयु (पूर्ण वर्षों में) <span className="text-red-600">*</span>
                       </label>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={formData.q6_age_at_marriage}
                         onChange={(e) => setFormData({ ...formData, q6_age_at_marriage: sanitizeNumeric(e.target.value) })}
-                        placeholder="विवाह की आयु"
-                        className={`w-full px-3 py-1.5 border rounded-lg text-xs bg-white font-bold ${
-                          errors.q6_age_at_marriage ? 'border-red-500' : 'border-slate-300'
+                        placeholder="विवाह के समय आयु (उदा. 21)"
+                        className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base bg-white font-bold ${
+                          errors.q6_age_at_marriage ? 'border-red-500 bg-red-50' : 'border-slate-300'
                         }`}
                       />
                       {errors.q6_age_at_marriage && (
-                        <p className="text-[10px] text-red-600 mt-0.5">{errors.q6_age_at_marriage}</p>
+                        <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{errors.q6_age_at_marriage}</span>
+                        </p>
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
-                        प्र. 7 पति/पत्नी का परिवार में क्र.सं.
-                      </label>
-                      {potentialSpouses.length > 0 ? (
-                        <div className="relative">
-                          <select
-                            value={formData.q7_spouse_serial_no}
-                            onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: e.target.value })}
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold appearance-none pr-6"
-                          >
-                            <option value="">परिवार में नहीं / अन्य</option>
-                            {potentialSpouses.map((s) => (
-                              <option key={s.serial_no} value={s.serial_no}>
-                                क्र. {s.serial_no} - {s.q1_name} ({s.q3_gender === 1 ? 'पु.' : 'महि.'})
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={formData.q7_spouse_serial_no}
-                          onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: sanitizeNumeric(e.target.value) })}
-                          placeholder="क्र.सं. दर्ज करें"
-                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                        />
-                      )}
-                    </div>
+                    {/* Q.7 पति / पत्नी का परिवार में क्रम संख्या (SMART IMPLEMENTATION) */}
+                    {Number(formData.q5_marital_status) === 2 ? (
+                      <div>
+                        {formData.serial_no === 1 && potentialSpouses.length === 0 ? (
+                          /* Condition: Member #1 (Head) is married and spouse is not entered yet */
+                          <div className="bg-white p-3 rounded-xl border border-amber-300/80 space-y-2">
+                            <label className="block text-xs sm:text-sm font-bold text-[#0B3B60]">
+                              प्र. 7 मुखिया के पति/पत्नी का परिवार में क्र.सं.
+                            </label>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, q7_spouse_serial_no: '2' })}
+                                className={`p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all text-left flex items-start gap-2 ${
+                                  formData.q7_spouse_serial_no === '2' || !formData.q7_spouse_serial_no
+                                    ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                                    : 'bg-white text-slate-700 border-slate-300'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div>
+                                  <div>इसी परिवार में हैं</div>
+                                  <div className="text-[10px] opacity-85 font-normal">अगले सदस्य (क्र. 2) से स्वतः लिंक</div>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, q7_spouse_serial_no: '00' })}
+                                className={`p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all text-left flex items-start gap-2 ${
+                                  formData.q7_spouse_serial_no === '00'
+                                    ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                                    : 'bg-white text-slate-700 border-slate-300'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div>
+                                  <div>परिवार से बाहर / अन्यत्र</div>
+                                  <div className="text-[10px] opacity-85 font-normal">कोड 00 (बाहर)</div>
+                                </div>
+                              </button>
+                            </div>
+
+                            {formData.q7_spouse_serial_no !== '00' && (
+                              <p className="text-xs text-blue-900 font-semibold flex items-center gap-1.5 pt-0.5">
+                                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                                <span>सुविधा: जब आप क्र.सं. 2 (जीवनसाथी) जोड़ेंगे, तो क्र.सं. 1 और 2 स्वतः आपस में लिंक हो जाएंगे।</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          /* Condition: Spouse candidate exists in household */
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-xs sm:text-sm font-bold text-slate-800">
+                                प्र. 7 पति/पत्नी का परिवार में क्र.सं. <span className="text-red-600">*</span>
+                              </label>
+                              {formData.serial_no > 1 && formData.q2_relationship === 2 && (
+                                <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-300 flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  मुखिया से लिंक
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="relative">
+                              <select
+                                value={formData.q7_spouse_serial_no || ''}
+                                onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: e.target.value })}
+                                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8 focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                              >
+                                <option value="">-- जीवनसाथी का चयन करें --</option>
+                                {potentialSpouses.map((s) => (
+                                  <option key={s.serial_no} value={s.serial_no}>
+                                    क्र. {s.serial_no} - {s.q1_name} ({s.q3_gender === 1 ? 'पुरुष' : s.q3_gender === 2 ? 'महिला' : 'अन्य'}, {s.q4b_age} वर्ष)
+                                  </option>
+                                ))}
+                                <option value="00">00 - परिवार से बाहर / अन्यत्र निवास</option>
+                              </select>
+                              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-xs text-slate-600 font-medium">
+                        प्र. 7 लागू नहीं (वर्तमान में विवाहित नहीं हैं)
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Q.8 & Q.9 धर्म */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">
                   प्र. 9 धर्म <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -554,7 +730,7 @@ export default function MemberModal({
                   <select
                     value={formData.q9_religion}
                     onChange={(e) => setFormData({ ...formData, q9_religion: Number(e.target.value) })}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {RELIGION_CODES.map((rel) => (
                       <option key={rel.code} value={rel.code}>
@@ -562,12 +738,12 @@ export default function MemberModal({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                 </div>
 
                 {formData.q9_religion === 7 && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  <div className="pt-1">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
                       अन्य धर्म का नाम लिखें
                     </label>
                     <input
@@ -575,7 +751,7 @@ export default function MemberModal({
                       value={formData.q9_religion_other}
                       onChange={(e) => setFormData({ ...formData, q9_religion_other: sanitizeText(e.target.value) })}
                       placeholder="धर्म का नाम"
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
                     />
                   </div>
                 )}
@@ -583,184 +759,509 @@ export default function MemberModal({
             </div>
           )}
 
-          {/* TAB 1: सामाजिक, माता-पिता एवं दिव्यांगता (प्र. 10 से 14) */}
+          {/* TAB 1: सामाजिक, माता-पिता एवं दिव्यांगता (प्र. 10 से 14 strictly matching schedule photo) */}
           {activeTab === 1 && (
-            <div className="space-y-3.5">
-              {/* Q.10 सामाजिक श्रेणी */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 10(क) सामाजिक श्रेणी (SC / ST / अन्य) <span className="text-red-600 font-bold">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={formData.q10a_sc_st}
-                    onChange={(e) => setFormData({ ...formData, q10a_sc_st: Number(e.target.value) })}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
-                  >
-                    {SOCIAL_CATEGORY_CODES.map((sc) => (
-                      <option key={sc.code} value={sc.code}>
-                        {sc.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            <div className="space-y-4">
+              
+              {/* Q.10 अनुसूचित जाति / जनजाति / जाति विवरण (Strictly Matching Official Schedule Photo) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                    प्र. 10 अनुसूचित जाति / जनजाति / जाति विवरण
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    10(क) क्या अ.जा. है? 10(ख) क्या अ.ज.जा. है? हाँ... 1, नहीं... 2
+                  </p>
                 </div>
 
-                {formData.q10a_sc_st === 1 || formData.q10a_sc_st === 2 ? (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                      प्र. 10(ख) SC/ST सूची से नाम व कोड
+                {/* 10(क) and 10(ख) Radio Selectors */}
+                <div className="grid grid-cols-2 gap-3">
+                  
+                  {/* 10(क) अनुसूचित जाति (SC) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                      10(क) क्या अ.जा. (SC) हैं? <span className="text-red-600">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={formData.q10b_caste_code}
-                      onChange={(e) => setFormData({ ...formData, q10b_caste_code: sanitizeText(e.target.value) })}
-                      placeholder="जाति का नाम व कोड"
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, q10a_sc: 1, q10b_st: 2, q10a_sc_st: 1 })}
+                        className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                          formData.q10a_sc === 1
+                            ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        1 - हाँ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, q10a_sc: 2, q10a_sc_st: formData.q10b_st === 1 ? 2 : 3 })}
+                        className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                          formData.q10a_sc === 2
+                            ? 'bg-slate-700 text-white border-slate-800'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        2 - नहीं
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 10(ख) अनुसूचित जनजाति (ST) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                      10(ख) क्या अ.ज.जा. (ST) हैं? <span className="text-red-600">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={formData.q10a_sc === 1}
+                        onClick={() => setFormData({ ...formData, q10b_st: 1, q10a_sc: 2, q10a_sc_st: 2 })}
+                        className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                          formData.q10b_st === 1
+                            ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 disabled:opacity-50'
+                        }`}
+                      >
+                        1 - हाँ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, q10b_st: 2, q10a_sc_st: formData.q10a_sc === 1 ? 1 : 3 })}
+                        className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                          formData.q10b_st === 2
+                            ? 'bg-slate-700 text-white border-slate-800'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        2 - नहीं
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* If SC or ST: Name & 3-digit Code */}
+                {(formData.q10a_sc === 1 || formData.q10b_st === 1) ? (
+                  <div className="grid grid-cols-3 gap-2.5 pt-1 bg-amber-50/70 p-3 rounded-xl border border-amber-200">
+                    <div className="col-span-2">
+                      <label className="block text-xs sm:text-sm font-bold text-amber-950 mb-1">
+                        राज्य की सूची से {formData.q10a_sc === 1 ? 'SC' : 'ST'} जाति का नाम
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.q10c_caste_name || ''}
+                        onChange={(e) => setFormData({ ...formData, q10c_caste_name: sanitizeText(e.target.value) })}
+                        placeholder="उदा. जाटव, चमार, कोरी, थारू आदि"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm font-bold text-amber-950 mb-1">
+                        जाति कोड [3 अंक]
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={3}
+                        value={formData.q10b_caste_code || ''}
+                        onChange={(e) => setFormData({ ...formData, q10b_caste_code: sanitizeNumeric(e.target.value).slice(0, 3) })}
+                        placeholder="066"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono font-bold text-center text-sm bg-white"
+                      />
+                    </div>
                   </div>
                 ) : (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                      प्र. 10(ग) जाति का नाम (या 'नहीं बताना चाहते' / 'कोई जाति नहीं')
+                  /* 10(ग) Both No: General / OBC / Other Caste Name */
+                  <div className="space-y-2 pt-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label className="block text-xs sm:text-sm font-bold text-slate-800">
+                      10(ग) दोनों में नहीं: जाति का नाम / संवर्ग
                     </label>
                     <input
                       type="text"
-                      value={formData.q10c_caste_name}
+                      value={formData.q10c_caste_name || ''}
                       onChange={(e) => setFormData({ ...formData, q10c_caste_name: sanitizeText(e.target.value) })}
-                      placeholder="जाति का नाम दर्ज करें"
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                      placeholder="जाति का नाम लिखें (उदा. ब्राह्मण, जाट, यादव, ठाकुर, आदि)"
+                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold"
                     />
+                    
+                    {/* Quick 1-Tap Chips */}
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      <span className="text-xs text-slate-500 font-semibold">त्वरित विकल्प:</span>
+                      {['नहीं बताना चाहते', 'कोई जाति नहीं', 'सामान्य (General)'].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, q10c_caste_name: opt })}
+                          className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-700 active:scale-95 transition-all shadow-xs"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Q.11 पिता का विवरण */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 block">प्र. 11 पिता का विवरण</span>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.q11_father_in_hh}
-                    onChange={(e) => setFormData({ ...formData, q11_father_in_hh: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#0B3B60] focus:ring-[#0B3B60]"
-                  />
-                  <span className="text-xs font-semibold text-slate-700">पिता इसी परिवार में दर्ज हैं</span>
-                </label>
+              {/* Q.11 पिता का विवरण (Matching Schedule Photo) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                    प्र. 11 पिता का विवरण
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    इसी परिवार में गणना हुई हो तो केवल क्र.सं., अन्यथा नाम, जीवित/मृत, जन्म तिथि, जन्म स्थान व धर्म
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, q11_father_in_hh: true })}
+                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                      formData.q11_father_in_hh
+                        ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    इसी परिवार में गणना हुई है
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, q11_father_in_hh: false })}
+                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                      !formData.q11_father_in_hh
+                        ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    परिवार से बाहर / दिवंगत
+                  </button>
+                </div>
 
                 {formData.q11_father_in_hh ? (
-                  potentialFathers.length > 0 ? (
-                    <div className="relative">
-                      <select
-                        value={formData.q11_father_serial_no}
-                        onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
-                      >
-                        <option value="">परिवार में पिता का चयन करें</option>
-                        {potentialFathers.map((f) => (
-                          <option key={f.serial_no} value={f.serial_no}>
-                            क्र. {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष)
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.q11_father_serial_no}
-                      onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
-                      placeholder="पिता का क्रम संख्या दर्ज करें (उदा. 1)"
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                    />
-                  )
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                      परिवार में पिता का चयन करें (क्र.सं.) <span className="text-red-600">*</span>
+                    </label>
+                    {potentialFathers.length > 0 ? (
+                      <div className="relative">
+                        <select
+                          value={formData.q11_father_serial_no || ''}
+                          onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value })}
+                          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
+                        >
+                          <option value="">-- पिता का चयन करें --</option>
+                          {potentialFathers.map((f) => (
+                            <option key={f.serial_no} value={f.serial_no}>
+                              क्र. {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष, पुरुष)
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.q11_father_serial_no || ''}
+                        onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
+                        placeholder="पिता का क्रम संख्या लिखें (उदा. 1)"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white font-bold"
+                      />
+                    )}
+                  </div>
                 ) : (
-                  <input
-                    type="text"
-                    value={formData.q11_father_name}
-                    onChange={(e) => setFormData({ ...formData, q11_father_name: sanitizeName(e.target.value) })}
-                    placeholder="पिता का पूरा नाम"
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-medium"
-                  />
+                  /* When outside family or deceased: Name, Alive/Dead, DOB, Birthplace, Religion */
+                  <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                        पिता का पूरा नाम <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.q11_father_name || ''}
+                        onChange={(e) => setFormData({ ...formData, q11_father_name: sanitizeName(e.target.value) })}
+                        placeholder="पिता का नाम दर्ज करें"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          क्या पिता जीवित हैं?
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, q11_father_alive: true })}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              formData.q11_father_alive === true
+                                ? 'bg-emerald-700 text-white border-emerald-800'
+                                : 'bg-white text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            1-जीवित
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, q11_father_alive: false })}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              formData.q11_father_alive === false
+                                ? 'bg-slate-700 text-white border-slate-800'
+                                : 'bg-white text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            2-दिवंगत
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          पिता की जन्म तिथि (DD/MM/YYYY)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={10}
+                          value={formData.q11_father_dob || ''}
+                          onChange={(e) => setFormData({ ...formData, q11_father_dob: formatDobInput(e.target.value) })}
+                          placeholder="DD/MM/YYYY"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          जन्म स्थान (राज्य/जिला/देश)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.q11_father_birthplace || ''}
+                          onChange={(e) => setFormData({ ...formData, q11_father_birthplace: sanitizeText(e.target.value) })}
+                          placeholder="उदा. मथुरा, उ.प्र."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          पिता का धर्म
+                        </label>
+                        <select
+                          value={formData.q11_father_religion || formData.q9_religion || 1}
+                          onChange={(e) => setFormData({ ...formData, q11_father_religion: Number(e.target.value) })}
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm bg-white font-semibold"
+                        >
+                          {RELIGION_CODES.map((r) => (
+                            <option key={r.code} value={r.code}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Q.12 माता का विवरण */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 block">प्र. 12 माता का विवरण</span>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.q12_mother_in_hh}
-                    onChange={(e) => setFormData({ ...formData, q12_mother_in_hh: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#0B3B60] focus:ring-[#0B3B60]"
-                  />
-                  <span className="text-xs font-semibold text-slate-700">माता इसी परिवार में दर्ज हैं</span>
-                </label>
+              {/* Q.12 माता का विवरण (Matching Schedule Photo) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                    प्र. 12 माता का विवरण
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    इसी परिवार में गणना हुई हो तो केवल क्र.सं., अन्यथा नाम, जीवित/मृत, जन्म तिथि, जन्म स्थान व धर्म
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, q12_mother_in_hh: true })}
+                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                      formData.q12_mother_in_hh
+                        ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    इसी परिवार में गणना हुई है
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, q12_mother_in_hh: false })}
+                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[40px] border transition-all ${
+                      !formData.q12_mother_in_hh
+                        ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    परिवार से बाहर / दिवंगत
+                  </button>
+                </div>
 
                 {formData.q12_mother_in_hh ? (
-                  potentialMothers.length > 0 ? (
-                    <div className="relative">
-                      <select
-                        value={formData.q12_mother_serial_no}
-                        onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
-                      >
-                        <option value="">परिवार में माता का चयन करें</option>
-                        {potentialMothers.map((m) => (
-                          <option key={m.serial_no} value={m.serial_no}>
-                            क्र. {m.serial_no} - {m.q1_name} ({m.q4b_age} वर्ष)
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.q12_mother_serial_no}
-                      onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
-                      placeholder="माता का क्रम संख्या दर्ज करें (उदा. 2)"
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                    />
-                  )
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                      परिवार में माता का चयन करें (क्र.सं.) <span className="text-red-600">*</span>
+                    </label>
+                    {potentialMothers.length > 0 ? (
+                      <div className="relative">
+                        <select
+                          value={formData.q12_mother_serial_no || ''}
+                          onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value })}
+                          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
+                        >
+                          <option value="">-- माता का चयन करें --</option>
+                          {potentialMothers.map((m) => (
+                            <option key={m.serial_no} value={m.serial_no}>
+                              क्र. {m.serial_no} - {m.q1_name} ({m.q4b_age} वर्ष, महिला)
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.q12_mother_serial_no || ''}
+                        onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
+                        placeholder="माता का क्रम संख्या लिखें (उदा. 2)"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white font-bold"
+                      />
+                    )}
+                  </div>
                 ) : (
-                  <input
-                    type="text"
-                    value={formData.q12_mother_name}
-                    onChange={(e) => setFormData({ ...formData, q12_mother_name: sanitizeName(e.target.value) })}
-                    placeholder="माता का पूरा नाम"
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-medium"
-                  />
+                  /* When outside family or deceased: Name, Alive/Dead, DOB, Birthplace, Religion */
+                  <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                        माता का पूरा नाम <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.q12_mother_name || ''}
+                        onChange={(e) => setFormData({ ...formData, q12_mother_name: sanitizeName(e.target.value) })}
+                        placeholder="माता का नाम दर्ज करें"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          क्या माता जीवित हैं?
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, q12_mother_alive: true })}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              formData.q12_mother_alive === true
+                                ? 'bg-emerald-700 text-white border-emerald-800'
+                                : 'bg-white text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            1-जीवित
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, q12_mother_alive: false })}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              formData.q12_mother_alive === false
+                                ? 'bg-slate-700 text-white border-slate-800'
+                                : 'bg-white text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            2-दिवंगत
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          माता की जन्म तिथि (DD/MM/YYYY)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={10}
+                          value={formData.q12_mother_dob || ''}
+                          onChange={(e) => setFormData({ ...formData, q12_mother_dob: formatDobInput(e.target.value) })}
+                          placeholder="DD/MM/YYYY"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          जन्म स्थान (राज्य/जिला/देश)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.q12_mother_birthplace || ''}
+                          onChange={(e) => setFormData({ ...formData, q12_mother_birthplace: sanitizeText(e.target.value) })}
+                          placeholder="उदा. मथुरा, उ.प्र."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                          माता का धर्म
+                        </label>
+                        <select
+                          value={formData.q12_mother_religion || formData.q9_religion || 1}
+                          onChange={(e) => setFormData({ ...formData, q12_mother_religion: Number(e.target.value) })}
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm bg-white font-semibold"
+                        >
+                          {RELIGION_CODES.map((r) => (
+                            <option key={r.code} value={r.code}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Q.13 दिव्यांगता */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 13 कोई दिव्यांगता है?
-                </label>
+              {/* Q.13 दिव्यांगता (Matching Schedule Photo: 13(क) 1-हाँ, 2-नहीं; 13(ख) अधिकतम 3 प्रकार) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                    प्र. 13 दिव्यांगता विवरण
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    13(क) कोई दिव्यांगता? हाँ... 1, नहीं... 2 | 13(ख) प्रकार (अधिकतम 3, गम्भीरता के क्रम में)
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, q13a_disabled: 1 })}
-                    className={`py-2 rounded-lg font-bold text-xs border ${
+                    className={`py-2.5 rounded-xl font-bold text-xs sm:text-sm border min-h-[40px] ${
                       formData.q13a_disabled === 1
-                        ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-200'
+                        ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                        : 'bg-white text-slate-700 border-slate-300'
                     }`}
                   >
-                    1 - हाँ
+                    1 - हाँ (दिव्यांगता है)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, q13a_disabled: 2 })}
-                    className={`py-2 rounded-lg font-bold text-xs border ${
+                    onClick={() => setFormData({ ...formData, q13a_disabled: 2, q13b_disability_types: [] })}
+                    className={`py-2.5 rounded-xl font-bold text-xs sm:text-sm border min-h-[40px] ${
                       formData.q13a_disabled === 2
-                        ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-200'
+                        ? 'bg-slate-700 text-white border-slate-800'
+                        : 'bg-white text-slate-700 border-slate-300'
                     }`}
                   >
                     2 - नहीं
@@ -768,31 +1269,43 @@ export default function MemberModal({
                 </div>
 
                 {formData.q13a_disabled === 1 && (
-                  <div className="pt-2 border-t border-slate-100">
-                    <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1.5">
-                      दिव्यांगता के प्रकार (अधिकतम 3 चुनें):
+                  <div className="pt-1 space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label className="block text-xs sm:text-sm font-bold text-slate-800">
+                      13(ख) दिव्यांगता के प्रकार (अधिकतम 3 चुनें, प्राथमिकता/गंभीरता अनुसार):
                     </label>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-2">
                       {DISABILITY_CODES.map((d) => {
-                        const isChecked = (formData.q13b_disability_types || []).includes(d.code);
+                        const isSelected = (formData.q13b_disability_types || []).includes(d.code);
                         return (
                           <button
                             key={d.code}
                             type="button"
                             onClick={() => {
-                              const curr = formData.q13b_disability_types || [];
-                              const updated = isChecked
-                                ? curr.filter((c) => c !== d.code)
-                                : [...curr, d.code].slice(0, 3);
-                              setFormData({ ...formData, q13b_disability_types: updated });
+                              const current = formData.q13b_disability_types || [];
+                              if (isSelected) {
+                                setFormData({
+                                  ...formData,
+                                  q13b_disability_types: current.filter((c) => c !== d.code)
+                                });
+                              } else {
+                                if (current.length >= 3) {
+                                  alert('नियमावली अनुसार अधिकतम 3 दिव्यांगता प्रकार चुने जा सकते हैं!');
+                                  return;
+                                }
+                                setFormData({
+                                  ...formData,
+                                  q13b_disability_types: [...current, d.code]
+                                });
+                              }
                             }}
-                            className={`px-2.5 py-2 rounded-lg text-left text-[11px] font-medium border ${
-                              isChecked
-                                ? 'bg-amber-100 border-amber-400 text-amber-900 font-bold'
-                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                            className={`p-2.5 rounded-xl text-xs sm:text-sm font-semibold border text-left transition-all flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-[#0B3B60] text-white border-[#072F5F] font-bold shadow-sm'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                             }`}
                           >
-                            {d.label}
+                            <span>{d.code}. {d.label}</span>
+                            {isSelected && <Check className="w-4 h-4 text-amber-300 shrink-0" />}
                           </button>
                         );
                       })}
@@ -801,19 +1314,59 @@ export default function MemberModal({
                 )}
               </div>
 
-              {/* Q.14 मातृभाषा */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
-                  प्र. 14(क) मातृभाषा
-                </label>
-                <input
-                  type="text"
-                  value={formData.q14a_mother_tongue}
-                  onChange={(e) => setFormData({ ...formData, q14a_mother_tongue: sanitizeText(e.target.value) })}
-                  placeholder="हिन्दी / ब्रजभाषा / अन्य"
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-medium"
-                />
+              {/* Q.14 मातृभाषा व अन्य भाषाएँ (Matching Schedule Photo: 14(क) मातृभाषा, 14(ख, ग) अन्य ज्ञात भाषाएँ) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                    प्र. 14 मातृभाषा व अन्य भाषाएँ
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    14(क) मातृभाषा का पूरा नाम | 14(ख, ग) अन्य ज्ञात भाषाएँ, दक्षता के क्रम में (अधिकतम 2)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                    14(क) मातृभाषा का पूरा नाम <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.q14a_mother_tongue || 'हिन्दी'}
+                    onChange={(e) => setFormData({ ...formData, q14a_mother_tongue: sanitizeName(e.target.value) })}
+                    placeholder="उदा. हिन्दी, ब्रजभाषा, उर्दू आदि"
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base font-bold bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                      14(ख) अन्य ज्ञात भाषा 1
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.q14b_other_lang1 || ''}
+                      onChange={(e) => setFormData({ ...formData, q14b_other_lang1: sanitizeName(e.target.value) })}
+                      placeholder="उदा. अंग्रेजी"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
+                      14(ग) अन्य ज्ञात भाषा 2
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.q14c_other_lang2 || ''}
+                      onChange={(e) => setFormData({ ...formData, q14c_other_lang2: sanitizeName(e.target.value) })}
+                      placeholder="उदा. संस्कृत / उर्दू"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                    />
+                  </div>
+                </div>
               </div>
+
             </div>
           )}
 
