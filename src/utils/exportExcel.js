@@ -23,6 +23,15 @@ const getLabel = (codes, value) => {
 export const exportAllDataToExcel = async () => {
   const households = await db.households.toArray();
   const members = await db.members.toArray();
+  const settings = await db.settings.get('active_settings');
+  const sections = settings?.sections || [];
+
+  const getSecName = (secVal) => {
+    if (!secVal) return '';
+    const match = sections.find((s) => s.id === String(secVal) || s.name === String(secVal));
+    if (match) return match.name;
+    return String(secVal).startsWith('सेक्शन') ? String(secVal) : `सेक्शन ${secVal}`;
+  };
 
   if (households.length === 0) {
     alert('डाउनलोड करने के लिए कोई डेटा उपलब्ध नहीं है!');
@@ -35,7 +44,7 @@ export const exportAllDataToExcel = async () => {
   // 1. Households Sheet Data
   const hhRows = households.map((h, idx) => ({
     'क्र.सं.': idx + 1,
-    'गांव का सेक्शन': `सेक्शन ${h.village_section}`,
+    'गांव का सेक्शन': getSecName(h.village_section),
     'भवन संख्या': h.building_no,
     'जनगणना मकान सं.': h.census_house_no,
     'परिवार संख्या': h.household_no,
@@ -60,7 +69,7 @@ export const exportAllDataToExcel = async () => {
       'परिवार सं.': parentHh ? parentHh.household_no : '',
       'मकान सं.': parentHh ? parentHh.census_house_no : '',
       'भवन सं.': parentHh ? parentHh.building_no : '',
-      'ग्राम सेक्शन': parentHh ? `सेक्शन ${parentHh.village_section}` : '',
+      'ग्राम सेक्शन': parentHh ? getSecName(parentHh.village_section) : '',
       'Q.1 सदस्य का नाम': m.q1_name,
       'Q.2 सम्बन्ध': getLabel(RELATIONSHIP_CODES, m.q2_relationship),
       'Q.3 लिंग': m.q3_gender === 1 ? 'पुरुष' : m.q3_gender === 2 ? 'महिला' : 'अन्य',

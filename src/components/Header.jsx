@@ -130,6 +130,9 @@ export default function Header({
     const res = await syncPendingData();
     setIsSyncing(false);
     setSyncMsg(res.message);
+    if (res.updatedSettings && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('census_settings_updated', { detail: res.updatedSettings }));
+    }
     setTimeout(() => setSyncMsg(''), 5000);
   };
 

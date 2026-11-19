@@ -43,15 +43,23 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
       setMembers(memList);
 
       const settings = await db.settings.get('active_settings');
-      if (settings && settings.sections) {
-        setSectionsList(settings.sections);
-      } else {
-        setSectionsList([
-          { id: '1', name: 'सेक्शन 1' },
-          { id: '2', name: 'सेक्शन 2' },
-          { id: '3', name: 'सेक्शन 3' }
-        ]);
+      let baseSections = settings && settings.sections && settings.sections.length > 0
+        ? [...settings.sections]
+        : [
+            { id: '1', name: 'सेक्शन 1' },
+            { id: '2', name: 'सेक्शन 2' },
+            { id: '3', name: 'सेक्शन 3' }
+          ];
+
+      // Auto-discover any custom sections present in households
+      const hhSections = Array.from(new Set(hhs.map((h) => String(h.village_section || '').trim()).filter(Boolean)));
+      for (const hs of hhSections) {
+        const exists = baseSections.some((s) => s.id === hs || s.name === hs || `सेक्शन ${s.id}` === hs);
+        if (!exists) {
+          baseSections.push({ id: hs, name: hs.startsWith('सेक्शन') ? hs : `सेक्शन ${hs}` });
+        }
       }
+      setSectionsList(baseSections);
     } catch (err) {
       console.warn('Error loading household registry:', err);
     }
@@ -60,8 +68,10 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
   useEffect(() => {
     loadData();
     window.addEventListener('focus', loadData);
+    window.addEventListener('census_settings_updated', loadData);
     return () => {
       window.removeEventListener('focus', loadData);
+      window.removeEventListener('census_settings_updated', loadData);
     };
   }, [loadData]);
 
@@ -92,6 +102,9 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
     try {
       const res = await syncPendingData();
       setPullMsg(res.message);
+      if (res.updatedSettings && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('census_settings_updated', { detail: res.updatedSettings }));
+      }
       await loadData();
     } catch (err) {
       setPullMsg('सिंक विफलता: ' + (err.message || err));
@@ -109,12 +122,15 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
     }
   };
 
-  // Safe section matching (handles '1', 1, 'सेक्शन 1')
+  // Safe section matching (handles '1', 1, 'सेक्शन 1', custom names like 'यादव टोला')
   const matchesSection = (h, filter) => {
     if (!filter || filter === 'all') return true;
     const sec = String(h.village_section || '').trim();
     const target = String(filter).trim();
-    return sec === target || sec === `सेक्शन ${target}` || sec === `Section ${target}`;
+    if (sec === target || sec === `सेक्शन ${target}` || sec === `Section ${target}`) return true;
+    const secObj = sectionsList.find((s) => s.id === target || s.name === target);
+    if (secObj && (sec === secObj.id || sec === secObj.name)) return true;
+    return false;
   };
 
   const filteredHouseholds = allHouseholds.filter((h) => {
@@ -307,9 +323,15 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                         <span className="font-black text-base sm:text-lg text-slate-900 leading-tight">
                           {h.head_name || 'अज्ञात मुखिया'}
                         </span>
-                        <span className="text-[11px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">
-                          सेक्शन {h.village_section}
-                        </span>
+                        {(() => {
+                          const secObj = sectionsList.find((s) => s.id === String(h.village_section) || s.name === String(h.village_section));
+                          const secDisplayName = secObj ? secObj.name : (String(h.village_section).startsWith('सेक्शन') ? h.village_section : `सेक्शन ${h.village_section}`);
+                          return (
+                            <span className="text-[11px] bg-blue-50 text-[#0B3B60] font-bold px-2 py-0.5 rounded border border-blue-200">
+                              {secDisplayName}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <div className="text-xs sm:text-sm text-slate-600 font-medium">

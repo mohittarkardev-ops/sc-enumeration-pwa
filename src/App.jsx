@@ -61,6 +61,24 @@ export default function App() {
         }
       }
     });
+
+    // Reactive listener for settings & sections updates across the entire app
+    const handleSettingsEvent = (e) => {
+      if (e.detail) {
+        setSettings(e.detail);
+        if (e.detail.active_section) setActiveSection(e.detail.active_section);
+      } else {
+        db.settings.get('active_settings').then((latest) => {
+          if (latest) {
+            setSettings(latest);
+            if (latest.active_section) setActiveSection(latest.active_section);
+          }
+        });
+      }
+    };
+
+    window.addEventListener('census_settings_updated', handleSettingsEvent);
+    return () => window.removeEventListener('census_settings_updated', handleSettingsEvent);
   }, []);
 
   const handleSectionChange = async (section) => {

@@ -254,7 +254,7 @@ export default function HouseholdEntry({
       tehsil_block: settings?.tehsil_block || 'मथुरा (Mathura)',
       ward_village_name: settings?.ward_village_name || 'अज्ञात ग्राम',
       enumeration_block_no: settings?.enumeration_block_no || '001',
-      village_section: activeSection,
+      village_section: (editingHousehold && editingHousehold.village_section) ? editingHousehold.village_section : activeSection,
       building_no: cleanBuilding,
       census_house_no: cleanHouse,
       household_no: cleanHousehold,
