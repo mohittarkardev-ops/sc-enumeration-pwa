@@ -431,7 +431,7 @@ export default function QuickMemberModal({
           </div>
 
           {/* ३७. आधार संख्या (Aadhaar Number) */}
-          <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div className="space-y-2 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200 w-full max-w-full overflow-hidden">
             <div className="flex items-center justify-between">
               <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
                 ३७. आधार संख्या (Aadhaar Number)

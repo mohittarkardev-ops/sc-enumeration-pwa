@@ -683,7 +683,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.37 आधार संख्या (Aadhaar Number - 12 अंक त्वरित प्रविष्टि) */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2 w-full max-w-full overflow-hidden">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs sm:text-sm font-bold text-slate-900">
                     प्र. 37 आधार संख्या (Aadhaar Number - 12 अंक)
@@ -2438,7 +2438,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.37 आधार नंबर */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2 w-full max-w-full overflow-hidden">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs sm:text-sm font-bold text-slate-900">
                     प्र. 37 आधार संख्या (12 अंक)
