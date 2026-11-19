@@ -110,14 +110,42 @@ export default function HouseholdEntry({
     }
   }, [editingHousehold, editingMembers, settings]);
 
-  const adjustNumber = (current, setter, delta) => {
-    const num = parseInt(current, 10);
-    if (isNaN(num)) {
-      setter('001');
-      return;
+  const adjustBuilding = (delta) => {
+    const num = parseInt(buildingNo, 10);
+    const nextVal = pad3(isNaN(num) ? 1 : Math.max(1, num + delta));
+    setBuildingNo(nextVal);
+    if (censusHouseNo === buildingNo || delta > 0) {
+      setCensusHouseNo(nextVal);
     }
-    const nextVal = Math.max(1, num + delta);
-    setter(pad3(nextVal));
+    setHouseholdNo('001');
+  };
+
+  const adjustHouse = (delta) => {
+    const num = parseInt(censusHouseNo, 10);
+    const nextVal = pad3(isNaN(num) ? 1 : Math.max(1, num + delta));
+    setCensusHouseNo(nextVal);
+    setHouseholdNo('001');
+  };
+
+  const adjustHousehold = (delta) => {
+    const num = parseInt(householdNo, 10);
+    const nextVal = pad3(isNaN(num) ? 1 : Math.max(1, num + delta));
+    setHouseholdNo(nextVal);
+  };
+
+  const handleBuildingChange = (val) => {
+    const clean = sanitizeAlphanumeric(val);
+    setBuildingNo(clean);
+    if (censusHouseNo === buildingNo) {
+      setCensusHouseNo(clean);
+    }
+    setHouseholdNo('001');
+  };
+
+  const handleCensusHouseChange = (val) => {
+    const clean = sanitizeAlphanumeric(val);
+    setCensusHouseNo(clean);
+    setHouseholdNo('001');
   };
 
   // Open Quick Add Modal
@@ -297,13 +325,18 @@ export default function HouseholdEntry({
       await db.members.put(memberRecord);
     }
 
-    // Auto-increment household number for next entry
-    const nextHhNum = pad3(parseInt(cleanHousehold, 10) + 1);
+    // Auto-advance to next building & census house, resetting household to 001
+    const nextBuildingNum = pad3(parseInt(cleanBuilding, 10) + 1);
+    const nextHouseNum = pad3(parseInt(cleanHouse, 10) + 1);
+    const nextHhNum = '001';
+
+    setBuildingNo(nextBuildingNum);
+    setCensusHouseNo(nextHouseNum);
     setHouseholdNo(nextHhNum);
 
     await db.settings.update('active_settings', {
-      last_building_no: cleanBuilding,
-      last_census_house_no: cleanHouse,
+      last_building_no: nextBuildingNum,
+      last_census_house_no: nextHouseNum,
       last_household_no: nextHhNum
     });
 
@@ -451,7 +484,7 @@ export default function HouseholdEntry({
                 <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
                   <button
                     type="button"
-                    onClick={() => adjustNumber(buildingNo, setBuildingNo, -1)}
+                    onClick={() => adjustBuilding(-1)}
                     className="w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
                     title="घटाएं (-1)"
                   >
@@ -460,14 +493,14 @@ export default function HouseholdEntry({
                   <input
                     type="text"
                     value={buildingNo}
-                    onChange={(e) => setBuildingNo(sanitizeAlphanumeric(e.target.value))}
+                    onChange={(e) => handleBuildingChange(e.target.value)}
                     className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
                   />
                   <button
                     type="button"
-                    onClick={() => adjustNumber(buildingNo, setBuildingNo, 1)}
+                    onClick={() => adjustBuilding(1)}
                     className="w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
-                    title="बढ़ाएं (+1)"
+                    title="नया भवन (+1, परिवार 001)"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -482,7 +515,7 @@ export default function HouseholdEntry({
                 <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
                   <button
                     type="button"
-                    onClick={() => adjustNumber(censusHouseNo, setCensusHouseNo, -1)}
+                    onClick={() => adjustHouse(-1)}
                     className="w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
                     title="घटाएं (-1)"
                   >
@@ -491,14 +524,14 @@ export default function HouseholdEntry({
                   <input
                     type="text"
                     value={censusHouseNo}
-                    onChange={(e) => setCensusHouseNo(sanitizeAlphanumeric(e.target.value))}
+                    onChange={(e) => handleCensusHouseChange(e.target.value)}
                     className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
                   />
                   <button
                     type="button"
-                    onClick={() => adjustNumber(censusHouseNo, setCensusHouseNo, 1)}
+                    onClick={() => adjustHouse(1)}
                     className="w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
-                    title="बढ़ाएं (+1)"
+                    title="नया मकान (+1, परिवार 001)"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -513,8 +546,9 @@ export default function HouseholdEntry({
                   </label>
                   <button
                     type="button"
-                    onClick={() => adjustNumber(householdNo, setHouseholdNo, 1)}
+                    onClick={() => adjustHousehold(1)}
                     className="sm:hidden text-xs font-bold text-white bg-[#0B3B60] px-2.5 py-0.5 rounded-lg active:scale-95 shadow-xs"
+                    title="उसी मकान में अगला परिवार"
                   >
                     +1 अगला परिवार
                   </button>
@@ -523,8 +557,9 @@ export default function HouseholdEntry({
                 <div className="flex items-center border-2 border-[#0B3B60] rounded-xl overflow-hidden bg-white shadow-sm">
                   <button
                     type="button"
-                    onClick={() => adjustNumber(householdNo, setHouseholdNo, -1)}
+                    onClick={() => adjustHousehold(-1)}
                     className="w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                    title="घटाएं (-1)"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -536,13 +571,32 @@ export default function HouseholdEntry({
                   />
                   <button
                     type="button"
-                    onClick={() => adjustNumber(householdNo, setHouseholdNo, 1)}
+                    onClick={() => adjustHousehold(1)}
                     className="w-11 h-11 bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold border-l border-blue-900 active:bg-[#072F5F] transition-colors flex items-center justify-center shrink-0"
+                    title="उसी मकान में परिवार संख्या बढ़ाएं"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Helper status text about Building / House / Family relationship */}
+            <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+              <span className="flex items-center gap-1 font-semibold">
+                {Number(householdNo) > 1 ? (
+                  <span className="text-amber-800 font-bold bg-amber-100/80 px-1.5 py-0.5 rounded">
+                    ⚠️ भवन {buildingNo}, मकान {censusHouseNo} में परिवार संख्या #{householdNo} (संयुक्त/सांझा चूल्हा)
+                  </span>
+                ) : (
+                  <span className="text-emerald-800 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                    ✓ भवन {buildingNo}, मकान {censusHouseNo} का प्रथम परिवार (001)
+                  </span>
+                )}
+              </span>
+              <span className="text-slate-400">
+                (भवन/मकान बदलते ही परिवार संख्या स्वतः 001 हो जाएगी)
+              </span>
             </div>
           </div>
 
