@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, 
   UserPlus, 
   Trash2, 
   Edit3, 
@@ -8,11 +7,11 @@ import {
   Home, 
   Users, 
   Save, 
-  ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { db } from '../db/db';
-import { HOUSEHOLD_TYPE_CODES, RELATIONSHIP_CODES, GENDER_CODES, MARITAL_STATUS_CODES } from '../constants/censusCodes';
+import { HOUSEHOLD_TYPE_CODES, RELATIONSHIP_CODES, GENDER_CODES } from '../constants/censusCodes';
 import MemberModal from './MemberModal';
 import { syncPendingData } from '../db/supabase';
 import { sanitizeAlphanumeric, sanitizeText } from '../utils/validation';
@@ -27,8 +26,12 @@ export default function HouseholdEntry({
   activeSection,
   settings,
   onOpenSettings,
-  onHouseholdSaved
+  onHouseholdSaved,
+  editingHousehold = null,
+  editingMembers = [],
+  onCancelEditing
 }) {
+  const [currentLocalId, setCurrentLocalId] = useState(null);
   const [buildingNo, setBuildingNo] = useState(settings?.last_building_no || '001');
   const [censusHouseNo, setCensusHouseNo] = useState(settings?.last_census_house_no || '001');
   const [householdNo, setHouseholdNo] = useState(settings?.last_household_no || '001');
@@ -42,13 +45,25 @@ export default function HouseholdEntry({
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [formError, setFormError] = useState('');
 
+  // Handle load of editing household
   useEffect(() => {
-    if (settings) {
+    if (editingHousehold) {
+      setCurrentLocalId(editingHousehold.local_id);
+      setBuildingNo(editingHousehold.building_no);
+      setCensusHouseNo(editingHousehold.census_house_no);
+      setHouseholdNo(editingHousehold.household_no);
+      setHouseholdType(editingHousehold.household_type || 1);
+      setRemarks(editingHousehold.remarks || '');
+      setStatus(editingHousehold.status || 'completed');
+      setMembers(editingMembers || []);
+      setFeedbackMsg(`संशोधन हेतु परिवार क्रमांक ${editingHousehold.household_no} लोड किया गया।`);
+    } else if (settings) {
+      setCurrentLocalId(null);
       if (settings.last_building_no) setBuildingNo(settings.last_building_no);
       if (settings.last_census_house_no) setCensusHouseNo(settings.last_census_house_no);
       if (settings.last_household_no) setHouseholdNo(settings.last_household_no);
     }
-  }, [settings]);
+  }, [editingHousehold, editingMembers, settings]);
 
   const adjustNumber = (current, setter, delta) => {
     const num = parseInt(current, 10);
@@ -122,7 +137,7 @@ export default function HouseholdEntry({
       return;
     }
 
-    const householdLocalId = 'hh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const householdLocalId = currentLocalId || ('hh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
     const head = members[0];
 
     const householdRecord = {
@@ -143,25 +158,30 @@ export default function HouseholdEntry({
       status: status,
       remarks: sanitizeText(remarks),
       sync_status: 'pending',
-      created_at: new Date().toISOString(),
+      created_at: editingHousehold ? editingHousehold.created_at : new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    // Save in IndexedDB
+    // Save household in IndexedDB
     await db.households.put(householdRecord);
+
+    // Remove old members if editing, then put updated
+    if (currentLocalId) {
+      await db.members.where('household_local_id').equals(currentLocalId).delete();
+    }
 
     for (const mem of members) {
       const memberRecord = {
         ...mem,
         household_local_id: householdLocalId,
         sync_status: 'pending',
-        created_at: new Date().toISOString(),
+        created_at: mem.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       await db.members.put(memberRecord);
     }
 
-    // Auto increment household number based on current entered number
+    // Auto increment household number for subsequent entries
     const nextHhNum = pad3(parseInt(cleanHousehold, 10) + 1);
     setHouseholdNo(nextHhNum);
 
@@ -173,8 +193,9 @@ export default function HouseholdEntry({
 
     setMembers([]);
     setRemarks('');
+    setCurrentLocalId(null);
 
-    setFeedbackMsg(`परिवार संख्या ${householdRecord.household_no} का प्रपत्र सफलतापूर्वक सुरक्षित किया गया।`);
+    setFeedbackMsg(`परिवार क्रमांक ${householdRecord.household_no} का प्रपत्र सफलतापूर्वक सुरक्षित हुआ।`);
     setTimeout(() => setFeedbackMsg(''), 4500);
 
     if (navigator.onLine) {
@@ -197,14 +218,29 @@ export default function HouseholdEntry({
   return (
     <div className="p-3 max-w-2xl mx-auto space-y-3 pb-24 font-['Hind']">
       
+      {/* Editing Notification Banner */}
+      {currentLocalId && (
+        <div className="bg-amber-100 border border-amber-300 text-amber-900 p-2.5 rounded flex items-center justify-between text-xs font-bold">
+          <span>संशोधन मोड: आप परिवार क्रमांक #{householdNo} का प्रपत्र संशोधित कर रहे हैं।</span>
+          <button
+            type="button"
+            onClick={onCancelEditing}
+            className="flex items-center gap-1 text-slate-800 hover:text-black font-extrabold underline ml-2"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            <span>रद्द करें</span>
+          </button>
+        </div>
+      )}
+
       {/* Official Administrative Location Banner */}
-      <div className="bg-white p-3 rounded-lg border border-slate-300 shadow-sm flex items-center justify-between">
+      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm flex items-center justify-between">
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0B3B60]"></span>
             <span>स्थान: {settings?.ward_village_name || 'ग्राम का नाम सेट करें'}</span>
             <span className="text-slate-400">|</span>
-            <span className="text-[#0B3B60] font-extrabold">भाग / सेक्शन {activeSection}</span>
+            <span className="text-[#0B3B60] font-extrabold">प्रभाग / सेक्शन {activeSection}</span>
           </div>
           <div className="text-[11px] text-slate-600 font-medium">
             जिला: <strong className="text-slate-800">{settings?.district_name || 'मथुरा'}</strong> | ब्लॉक/तहसील: <strong className="text-slate-800">{settings?.tehsil_block || 'मथुरा'}</strong> | गणना ब्लॉक: <strong className="text-slate-800">{settings?.enumeration_block_no || '001'}</strong>
@@ -220,21 +256,21 @@ export default function HouseholdEntry({
 
       {/* Alerts */}
       {feedbackMsg && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-lg flex items-center gap-2 text-xs font-bold shadow-sm">
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded flex items-center gap-2 text-xs font-bold shadow-sm">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{feedbackMsg}</span>
         </div>
       )}
 
       {formError && (
-        <div className="bg-red-50 border border-red-300 text-red-900 p-3 rounded-lg flex items-center gap-2 text-xs font-bold shadow-sm">
+        <div className="bg-red-50 border border-red-300 text-red-900 p-3 rounded flex items-center gap-2 text-xs font-bold shadow-sm">
           <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
           <span>{formError}</span>
         </div>
       )}
 
       {/* SECTION 1: भवन, मकान एवं परिवार पहचान संख्या */}
-      <div className="bg-white p-3.5 rounded-lg border border-slate-300 shadow-sm space-y-3">
+      <div className="bg-white p-3.5 rounded border border-slate-300 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <h2 className="text-xs font-bold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
             <Home className="w-4 h-4 text-[#0B3B60]" />
@@ -366,7 +402,7 @@ export default function HouseholdEntry({
       </div>
 
       {/* SECTION 2: परिवार के सदस्यों की विवरणी */}
-      <div className="bg-white p-3.5 rounded-lg border border-slate-300 shadow-sm space-y-3">
+      <div className="bg-white p-3.5 rounded border border-slate-300 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <div className="flex items-center gap-1.5">
             <Users className="w-4 h-4 text-[#0B3B60]" />
@@ -462,7 +498,7 @@ export default function HouseholdEntry({
       </div>
 
       {/* प्रपत्र स्थिति एवं रिमार्क्स */}
-      <div className="bg-white p-3 rounded-lg border border-slate-300 shadow-sm space-y-2">
+      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-800">सर्वेक्षण प्रपत्र की स्थिति</label>
           <div className="flex items-center gap-1.5">
@@ -513,7 +549,7 @@ export default function HouseholdEntry({
             className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-sm rounded shadow flex items-center justify-center gap-2 transition-all"
           >
             <Save className="w-4 h-4" />
-            <span>परिवार प्रपत्र सुरक्षित करें (0.01s)</span>
+            <span>परिवार प्रपत्र सुरक्षित करें</span>
           </button>
         </div>
       </div>
@@ -525,6 +561,7 @@ export default function HouseholdEntry({
         serialNo={editingMemberIndex !== null ? editingMemberIndex + 1 : members.length + 1}
         existingMember={editingMemberIndex !== null ? members[editingMemberIndex] : null}
         headMember={members.length > 0 ? members[0] : null}
+        householdMembers={members}
       />
     </div>
   );

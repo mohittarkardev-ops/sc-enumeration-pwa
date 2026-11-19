@@ -11,6 +11,10 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(null);
 
+  // Household editing state
+  const [editingHousehold, setEditingHousehold] = useState(null);
+  const [editingMembers, setEditingMembers] = useState([]);
+
   useEffect(() => {
     initDefaultSettings().then((s) => {
       setSettings(s);
@@ -33,13 +37,29 @@ export default function App() {
     setSettings(updated);
   };
 
+  const handleEditHouseholdFromList = (household, members) => {
+    setEditingHousehold(household);
+    setEditingMembers(members);
+    setActiveView('form');
+  };
+
+  const handleCancelEditing = () => {
+    setEditingHousehold(null);
+    setEditingMembers([]);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-['Hind'] select-none">
       <Header
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={(view) => {
+          if (view === 'form' && editingHousehold) {
+            handleCancelEditing();
+          }
+          setActiveView(view);
+        }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         villageName={settings?.ward_village_name}
       />
@@ -50,14 +70,22 @@ export default function App() {
             activeSection={activeSection}
             settings={settings}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            editingHousehold={editingHousehold}
+            editingMembers={editingMembers}
+            onCancelEditing={handleCancelEditing}
             onHouseholdSaved={() => {
-              // Stay on entry form for rapid successive household entry
+              setEditingHousehold(null);
+              setEditingMembers([]);
             }}
           />
         ) : (
           <HouseholdListView
             activeSection={activeSection}
-            onNewEntry={() => setActiveView('form')}
+            onNewEntry={() => {
+              handleCancelEditing();
+              setActiveView('form');
+            }}
+            onEditHousehold={handleEditHouseholdFromList}
           />
         )}
       </main>

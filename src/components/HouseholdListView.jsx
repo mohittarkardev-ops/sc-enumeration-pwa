@@ -6,14 +6,15 @@ import {
   CheckCircle, 
   Clock, 
   Download, 
-  ChevronDown,
+  ChevronDown, 
   ChevronUp,
-  FileText
+  Edit,
+  FolderOpen
 } from 'lucide-react';
 import { db } from '../db/db';
 import { exportAllDataToExcel } from '../utils/exportExcel';
 
-export default function HouseholdListView({ activeSection, onNewEntry }) {
+export default function HouseholdListView({ activeSection, onNewEntry, onEditHousehold }) {
   const [households, setHouseholds] = useState([]);
   const [members, setMembers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,14 +60,14 @@ export default function HouseholdListView({ activeSection, onNewEntry }) {
     <div className="p-3 max-w-2xl mx-auto space-y-3 pb-20 font-['Hind']">
       
       {/* Official Registry Stats Header */}
-      <div className="bg-white p-3.5 rounded-lg border border-slate-300 shadow-sm space-y-3">
+      <div className="bg-white p-3.5 rounded border border-slate-300 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <div>
             <h2 className="text-xs font-bold text-[#0B3B60] uppercase tracking-wide">
-              ग्राम भाग / सेक्शन {activeSection} — पंजीकृत परिवार पंजिका
+              ग्राम प्रभाग {activeSection} — परिवार पंजिका (Household Roster)
             </h2>
             <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-              कुल पंजीकृत परिवार: <strong className="text-slate-900">{households.length}</strong> | कुल सदस्य संख्या: <strong className="text-slate-900">{members.filter(m => households.some(h => h.local_id === m.household_local_id)).length}</strong>
+              पंजीकृत परिवार: <strong className="text-slate-900">{households.length}</strong> | कुल सदस्य संख्या: <strong className="text-slate-900">{members.filter(m => households.some(h => h.local_id === m.household_local_id)).length}</strong>
             </div>
           </div>
 
@@ -94,11 +95,11 @@ export default function HouseholdListView({ activeSection, onNewEntry }) {
 
       {/* Household Records List */}
       {filteredHouseholds.length === 0 ? (
-        <div className="bg-white p-8 rounded-lg border border-slate-300 text-center space-y-2">
+        <div className="bg-white p-8 rounded border border-slate-300 text-center space-y-2">
           <Users className="w-8 h-8 text-slate-400 mx-auto" />
           <p className="text-xs font-bold text-slate-800">कोई प्रविष्टि प्राप्त नहीं हुई</p>
           <p className="text-[11px] text-slate-500">
-            {searchQuery ? 'सर्च फ़िल्टर के अनुसार कोई रिकॉर्ड उपलब्ध नहीं है।' : `सेक्शन ${activeSection} में अभी तक कोई परिवार दर्ज नहीं हुआ है।`}
+            {searchQuery ? 'सर्च फ़िल्टर के अनुसार कोई रिकॉर्ड उपलब्ध नहीं है।' : `भाग ${activeSection} में अभी तक कोई परिवार दर्ज नहीं हुआ है।`}
           </p>
           <button
             onClick={onNewEntry}
@@ -116,16 +117,16 @@ export default function HouseholdListView({ activeSection, onNewEntry }) {
             return (
               <div
                 key={h.local_id}
-                className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden"
+                className="bg-white rounded border border-slate-300 shadow-sm overflow-hidden"
               >
-                {/* Main Row */}
+                {/* Main Summary Row */}
                 <div
                   onClick={() => setExpandedHhId(isExpanded ? null : h.local_id)}
                   className="p-3 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-10 rounded border border-slate-300 bg-slate-50 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-[9px] text-slate-500 font-semibold uppercase leading-none">परिवार</span>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase leading-none">परिवार</span>
                       <span className="text-xs font-extrabold text-[#0B3B60] leading-tight">
                         #{h.household_no}
                       </span>
@@ -153,7 +154,7 @@ export default function HouseholdListView({ activeSection, onNewEntry }) {
                     {h.sync_status === 'synced' ? (
                       <span className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-bold">
                         <CheckCircle className="w-3 h-3 text-emerald-600" />
-                        सिंक पूर्ण
+                        समन्वित
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[10px] text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 font-bold">
@@ -170,11 +171,25 @@ export default function HouseholdListView({ activeSection, onNewEntry }) {
                   </div>
                 </div>
 
-                {/* Expanded Household Members List */}
+                {/* Expanded Details & Actions */}
                 {isExpanded && (
                   <div className="bg-slate-50 border-t border-slate-200 p-3 space-y-2 text-xs">
-                    <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
-                      सदस्य विवरणी:
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+                        सदस्य विवरणी तालिका ({hhMembers.length}):
+                      </span>
+
+                      {/* Open / Edit Household Button */}
+                      {onEditHousehold && (
+                        <button
+                          type="button"
+                          onClick={() => onEditHousehold(h, hhMembers)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#0B3B60] hover:bg-[#134D7E] text-white text-[11px] font-bold transition-all"
+                        >
+                          <FolderOpen className="w-3 h-3" />
+                          <span>प्रपत्र खोलें व संशोधित करें</span>
+                        </button>
+                      )}
                     </div>
                     
                     <div className="border border-slate-200 rounded overflow-hidden bg-white">

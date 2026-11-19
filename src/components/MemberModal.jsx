@@ -40,7 +40,8 @@ export default function MemberModal({
   onSave,
   serialNo,
   existingMember = null,
-  headMember = null
+  headMember = null,
+  householdMembers = []
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState({});
@@ -144,7 +145,11 @@ export default function MemberModal({
   const isWorker = Number(formData.q18_work_last_year) <= 3;
   const isClass11Plus = Number(formData.q17a_highest_education) >= 11;
 
-  // Sanitized field updaters
+  // Potential fathers and mothers from household members
+  const potentialFathers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 1);
+  const potentialMothers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 2);
+  const potentialSpouses = householdMembers.filter(m => m.serial_no !== formData.serial_no);
+
   const handleNameChange = (val) => {
     const clean = sanitizeName(val);
     setFormData((prev) => ({ ...prev, q1_name: clean }));
@@ -219,12 +224,10 @@ export default function MemberModal({
   const handleSaveMember = (e) => {
     e.preventDefault();
 
-    // Run strict census validation check
-    const validation = validateMemberRecord(formData, [], formData.serial_no === 1 ? 0 : 1);
+    const validation = validateMemberRecord(formData, householdMembers, formData.serial_no === 1 ? 0 : 1);
     if (!validation.isValid) {
       setErrors(validation.errors);
 
-      // Auto route to tab containing the error
       if (validation.errors.q1_name || validation.errors.q2_relationship || validation.errors.q3_gender || validation.errors.q4b_age || validation.errors.q6_age_at_marriage) {
         setActiveTab(0);
       } else if (validation.errors.q10a_sc_st || validation.errors.q11_father_serial_no || validation.errors.q12_mother_serial_no) {
@@ -241,18 +244,18 @@ export default function MemberModal({
   };
 
   const tabs = [
-    { id: 'demo', title: 'खंड 1: जनसांख्यिकी (1-9)' },
-    { id: 'social', title: 'खंड 2: सामाजिक व माता-पिता (10-14)' },
-    { id: 'edu', title: 'खंड 3: साक्षरता व शिक्षा (15-17)' },
-    { id: 'work', title: 'खंड 4: कार्य व गतिविधि (18-25)' },
-    { id: 'residence', title: 'खंड 5: जन्म व प्रवास (26-30)' },
-    ...(isFemale && isMarriedOrEver ? [{ id: 'fertility', title: 'खंड 6: प्रजनन विवरण (31-33)' }] : []),
-    { id: 'ids', title: 'खंड 7: पहचान पत्र व बैंक (34-40)' }
+    { id: 'demo', title: 'खंड I: जनसांख्यिकी (1-9)' },
+    { id: 'social', title: 'खंड II: सामाजिक व माता-पिता (10-14)' },
+    { id: 'edu', title: 'खंड III: साक्षरता व शिक्षा (15-17)' },
+    { id: 'work', title: 'खंड IV: कार्य व गतिविधि (18-25)' },
+    { id: 'residence', title: 'खंड V: जन्म व प्रवास (26-30)' },
+    ...(isFemale && isMarriedOrEver ? [{ id: 'fertility', title: 'खंड VI: प्रजनन विवरण (31-33)' }] : []),
+    { id: 'ids', title: 'खंड VII: पहचान पत्र व बैंक (34-40)' }
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/80 backdrop-blur-sm overflow-hidden font-['Hind']">
-      <div className="bg-white rounded-lg w-full max-w-xl h-[94vh] shadow-2xl flex flex-col border border-slate-300 overflow-hidden">
+      <div className="bg-white rounded w-full max-w-xl h-[94vh] shadow-2xl flex flex-col border border-slate-300 overflow-hidden">
         
         {/* Official Header */}
         <div className="bg-[#0B3B60] text-white px-3.5 py-2.5 flex items-center justify-between shrink-0 border-b border-[#072F5F]">
@@ -265,7 +268,7 @@ export default function MemberModal({
                 {formData.serial_no === 1 ? 'परिवार के मुखिया का प्रपत्र' : `परिवार के सदस्य का प्रपत्र (${formData.serial_no})`}
               </h2>
               <div className="text-[11px] text-slate-200">
-                {formData.q1_name ? `नाम: ${formData.q1_name}` : 'व्यक्तिगत विवरण प्रविष्टि'}
+                {formData.q1_name ? `नाम: ${formData.q1_name}` : 'व्यक्तिगत विवरणी प्रविष्टि'}
               </div>
             </div>
           </div>
@@ -291,7 +294,7 @@ export default function MemberModal({
           </div>
         </div>
 
-        {/* Tab Strip - Government Style */}
+        {/* Tab Strip */}
         <div className="flex overflow-x-auto no-scrollbar bg-slate-100 border-b border-slate-300 shrink-0 px-2 py-1 gap-1">
           {tabs.map((t, idx) => {
             const isActive = activeTab === idx;
@@ -482,18 +485,37 @@ export default function MemberModal({
                         <p className="text-[10px] text-red-600 mt-0.5">{errors.q6_age_at_marriage}</p>
                       )}
                     </div>
+
                     <div>
                       <label className="block text-[11px] font-bold text-slate-800 mb-0.5">
                         प्र. 7 पति/पत्नी का परिवार में क्र.सं.
                       </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.q7_spouse_serial_no}
-                        onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: sanitizeNumeric(e.target.value) })}
-                        placeholder="क्र.सं. (यदि इसी परिवार में है)"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
-                      />
+                      {potentialSpouses.length > 0 ? (
+                        <div className="relative">
+                          <select
+                            value={formData.q7_spouse_serial_no}
+                            onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: e.target.value })}
+                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-6"
+                          >
+                            <option value="">परिवार में नहीं / अन्य</option>
+                            {potentialSpouses.map((s) => (
+                              <option key={s.serial_no} value={s.serial_no}>
+                                क्र. {s.serial_no} - {s.q1_name} ({s.q3_gender === 1 ? 'पु.' : 'महि.'})
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formData.q7_spouse_serial_no}
+                          onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: sanitizeNumeric(e.target.value) })}
+                          placeholder="क्र.सं. दर्ज करें"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -603,14 +625,32 @@ export default function MemberModal({
                 </label>
 
                 {formData.q11_father_in_hh ? (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.q11_father_serial_no}
-                    onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
-                    placeholder="पिता का परिवार में क्रम संख्या (उदा. 1)"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
-                  />
+                  potentialFathers.length > 0 ? (
+                    <div className="relative">
+                      <select
+                        value={formData.q11_father_serial_no}
+                        onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value })}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-8"
+                      >
+                        <option value="">परिवार में पिता का चयन करें</option>
+                        {potentialFathers.map((f) => (
+                          <option key={f.serial_no} value={f.serial_no}>
+                            क्र. {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष)
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2 pointer-events-none" />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.q11_father_serial_no}
+                      onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
+                      placeholder="पिता का क्रम संख्या दर्ज करें (उदा. 1)"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                    />
+                  )
                 ) : (
                   <input
                     type="text"
@@ -636,14 +676,32 @@ export default function MemberModal({
                 </label>
 
                 {formData.q12_mother_in_hh ? (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.q12_mother_serial_no}
-                    onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
-                    placeholder="माता का परिवार में क्रम संख्या (उदा. 2)"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
-                  />
+                  potentialMothers.length > 0 ? (
+                    <div className="relative">
+                      <select
+                        value={formData.q12_mother_serial_no}
+                        onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value })}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-8"
+                      >
+                        <option value="">परिवार में माता का चयन करें</option>
+                        {potentialMothers.map((m) => (
+                          <option key={m.serial_no} value={m.serial_no}>
+                            क्र. {m.serial_no} - {m.q1_name} ({m.q4b_age} वर्ष)
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2 pointer-events-none" />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.q12_mother_serial_no}
+                      onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
+                      placeholder="माता का क्रम संख्या दर्ज करें (उदा. 2)"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                    />
+                  )
                 ) : (
                   <input
                     type="text"
@@ -1562,7 +1620,7 @@ export default function MemberModal({
               className="px-5 py-2.5 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 shadow-md transition-all"
             >
               <Check className="w-4 h-4" />
-              <span>सदस्य विवरण सुरक्षित करें</span>
+              <span>सदस्य विवरणी सुरक्षित करें</span>
             </button>
           </div>
         </div>
