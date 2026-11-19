@@ -498,7 +498,7 @@ export default function HouseholdEntry({
       )}
 
       {/* 2-Step Progress Navigation Header */}
-      <div className="bg-white/90 backdrop-blur-xs p-1.5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-1.5">
+      <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-1.5">
         <button
           type="button"
           onClick={() => setEntryStep(1)}

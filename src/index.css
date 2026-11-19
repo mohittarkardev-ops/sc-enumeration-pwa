@@ -15,29 +15,25 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
-    overflow-x: hidden;
-    max-width: 100%;
-    width: 100%;
+    overflow-x: clip;
+    overflow-y: auto;
   }
 
   body {
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
     font-family: var(--font-ui);
-    overscroll-behavior-y: none;
     background-color: #f8fafc;
     color: #0f172a;
     font-size: 15px;
     line-height: 1.5;
-    overflow-x: hidden;
-    max-width: 100%;
-    width: 100%;
+    min-height: 100vh;
+    overflow-x: clip;
   }
 
   #root {
-    overflow-x: hidden;
-    max-width: 100%;
-    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   /* English letters and numerals use Inter; Devanagari Hindi seamlessly renders in Hind */

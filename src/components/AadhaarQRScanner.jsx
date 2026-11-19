@@ -322,7 +322,7 @@ export default function AadhaarQRScanner({ isOpen, onClose, onScanSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs select-none animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm select-none animate-fadeIn">
       <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
         {/* Header */}
         <div className="p-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between text-white shrink-0">

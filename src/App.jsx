@@ -156,7 +156,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col select-none">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
