@@ -28,6 +28,7 @@ export default function Header({
   onViewChange,
   onOpenSettings,
   onLockApp,
+  onOpenPanjika,
   villageName = 'मथुरा',
   sections = [
     { id: '1', name: 'सेक्शन 1' },
@@ -218,7 +219,7 @@ export default function Header({
               {activeView === 'form' ? (
                 <>
                   <ListFilter className="w-4 h-4" />
-                  <span>पंजीका</span>
+                  <span>परिवार सूची</span>
                 </>
               ) : (
                 <>
@@ -228,18 +229,14 @@ export default function Header({
               )}
             </button>
 
-            {/* Register Book View Button */}
+            {/* Dedicated Register Book View Button (Slug: /panjika) */}
             <button
-              onClick={() => onViewChange('register')}
-              title="सम्पूर्ण परिवार पंजिका (Register Book)"
-              className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[38px] border ${
-                activeView === 'register'
-                  ? 'bg-emerald-600 text-white border-emerald-500'
-                  : 'bg-[#134D7E] hover:bg-[#1a5a93] text-white border-white/20'
-              }`}
+              onClick={onOpenPanjika}
+              title="आधिकारिक परिवार पंजिका प्रपत्र (/panjika)"
+              className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[38px] bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500"
             >
-              <BookOpen className="w-4 h-4" />
-              <span className="hidden sm:inline">पंजिका</span>
+              <BookOpen className="w-4 h-4 text-amber-300" />
+              <span>पंजिका</span>
             </button>
           </div>
         </div>

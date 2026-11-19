@@ -21,6 +21,41 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(null);
 
+  // Standalone slug routing for /panjika
+  const [currentPath, setCurrentPath] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      const h = window.location.hash;
+      if (p === '/panjika' || h === '#/panjika') return '/panjika';
+    }
+    return '/';
+  });
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const p = window.location.pathname;
+      const h = window.location.hash;
+      if (p === '/panjika' || h === '#/panjika') {
+        setCurrentPath('/panjika');
+      } else {
+        setCurrentPath('/');
+      }
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  const navigateTo = (path) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPath(path);
+  };
+
   // Household editing state
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [editingMembers, setEditingMembers] = useState([]);
@@ -110,6 +145,16 @@ export default function App() {
     return <LockScreen onUnlock={() => setIsUnlocked(true)} />;
   }
 
+  // ── Standalone Panjika View (Slug: /panjika) — Completely Independent Header ──
+  if (currentPath === '/panjika') {
+    return (
+      <RegisterBookView
+        settings={settings}
+        onBack={() => navigateTo('/')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-['Hind'] select-none">
       <Header
@@ -122,6 +167,7 @@ export default function App() {
           }
           setActiveView(view);
         }}
+        onOpenPanjika={() => navigateTo('/panjika')}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLockApp={handleLockApp}
         villageName={settings?.ward_village_name}
@@ -146,11 +192,6 @@ export default function App() {
               setEditingMembers([]);
               setActiveView('list');
             }}
-          />
-        ) : activeView === 'register' ? (
-          <RegisterBookView
-            activeSection={activeSection}
-            onBack={() => setActiveView('list')}
           />
         ) : (
           <HouseholdListView
