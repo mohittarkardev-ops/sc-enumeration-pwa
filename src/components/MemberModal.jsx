@@ -6,7 +6,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import {
   RELATIONSHIP_CODES,
@@ -145,7 +146,6 @@ export default function MemberModal({
   const isWorker = Number(formData.q18_work_last_year) <= 3;
   const isClass11Plus = Number(formData.q17a_highest_education) >= 11;
 
-  // Potential fathers and mothers from household members
   const potentialFathers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 1);
   const potentialMothers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 2);
   const potentialSpouses = householdMembers.filter(m => m.serial_no !== formData.serial_no);
@@ -244,24 +244,26 @@ export default function MemberModal({
   };
 
   const tabs = [
-    { id: 'demo', title: 'खंड I: जनसांख्यिकी (1-9)' },
-    { id: 'social', title: 'खंड II: सामाजिक व माता-पिता (10-14)' },
-    { id: 'edu', title: 'खंड III: साक्षरता व शिक्षा (15-17)' },
-    { id: 'work', title: 'खंड IV: कार्य व गतिविधि (18-25)' },
-    { id: 'residence', title: 'खंड V: जन्म व प्रवास (26-30)' },
-    ...(isFemale && isMarriedOrEver ? [{ id: 'fertility', title: 'खंड VI: प्रजनन विवरण (31-33)' }] : []),
-    { id: 'ids', title: 'खंड VII: पहचान पत्र व बैंक (34-40)' }
+    { id: 'demo', title: 'खंड I: जनसांख्यिकी' },
+    { id: 'social', title: 'खंड II: सामाजिक व माता-पिता' },
+    { id: 'edu', title: 'खंड III: साक्षरता व शिक्षा' },
+    { id: 'work', title: 'खंड IV: कार्य व गतिविधि' },
+    { id: 'residence', title: 'खंड V: जन्म व प्रवास' },
+    ...(isFemale && isMarriedOrEver ? [{ id: 'fertility', title: 'खंड VI: प्रजनन विवरण' }] : []),
+    { id: 'ids', title: 'खंड VII: पहचान व बैंक' }
   ];
 
+  const progressPercent = Math.round(((activeTab + 1) / tabs.length) * 100);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-900/80 backdrop-blur-sm overflow-hidden font-['Hind']">
-      <div className="bg-white rounded w-full max-w-xl h-[94vh] shadow-2xl flex flex-col border border-slate-300 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 bg-slate-900/80 backdrop-blur-sm overflow-hidden font-['Hind']">
+      <div className="bg-white rounded-2xl w-full max-w-xl h-[94vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
         
-        {/* Official Header */}
-        <div className="bg-[#0B3B60] text-white px-3.5 py-2.5 flex items-center justify-between shrink-0 border-b border-[#072F5F]">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 font-extrabold text-xs">
-              क्र.सं. {formData.serial_no}
+        {/* Official Header with Refined Padding */}
+        <div className="bg-[#0B3B60] text-white px-4 py-3 flex items-center justify-between shrink-0 border-b border-[#072F5F]">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-full bg-amber-400 text-slate-900 font-extrabold flex items-center justify-center text-xs shadow-sm">
+              #{formData.serial_no}
             </span>
             <div>
               <h2 className="text-sm font-bold leading-tight">
@@ -273,56 +275,70 @@ export default function MemberModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {formData.serial_no > 1 && headMember && (
               <button
                 type="button"
                 onClick={handleCopyFromHead}
-                className="flex items-center gap-1 px-2.5 py-1 bg-[#134D7E] hover:bg-[#1A5B94] rounded text-[11px] font-semibold text-amber-300 border border-white/20 active:scale-95 transition-all"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#134D7E] hover:bg-[#1A5B94] rounded-lg text-[11px] font-semibold text-amber-300 border border-white/20 active:scale-95 transition-all shadow-sm"
                 title="धर्म, जाति व स्थायी पता मुखिया से प्रतिलिपि करें"
               >
                 <Copy className="w-3 h-3" />
-                <span>मुखिया से प्रतिलिपि</span>
+                <span>मुखिया से कॉपी</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="p-1 rounded hover:bg-white/10 text-white active:scale-95 transition-all"
+              className="p-1.5 rounded-lg hover:bg-white/10 text-white active:scale-95 transition-all"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Tab Strip */}
-        <div className="flex overflow-x-auto no-scrollbar bg-slate-100 border-b border-slate-300 shrink-0 px-2 py-1 gap-1">
-          {tabs.map((t, idx) => {
-            const isActive = activeTab === idx;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveTab(idx)}
-                className={`px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap transition-all border ${
-                  isActive
-                    ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-                }`}
-              >
-                {t.title}
-              </button>
-            );
-          })}
+        {/* Visual Progress Bar (Step Indicator) */}
+        <div className="bg-slate-100 border-b border-slate-200 shrink-0">
+          <div className="flex items-center justify-between px-4 py-1 text-[11px] font-bold text-slate-700">
+            <span>{tabs[activeTab]?.title}</span>
+            <span className="text-[#0B3B60] font-mono">{activeTab + 1} / {tabs.length} ({progressPercent}%)</span>
+          </div>
+          <div className="w-full bg-slate-200 h-1">
+            <div 
+              className="bg-[#0B3B60] h-1 transition-all duration-300 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* Tab Strip */}
+          <div className="flex overflow-x-auto no-scrollbar px-2 py-1 gap-1">
+            {tabs.map((t, idx) => {
+              const isActive = activeTab === idx;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(idx)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
+                    isActive
+                      ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {t.title}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Form Body */}
-        <div className="flex-1 overflow-y-auto p-3.5 text-xs space-y-3.5 bg-slate-50">
+        {/* Form Body - Soft Rounded Cards */}
+        <div className="flex-1 overflow-y-auto p-4 text-xs space-y-3.5 bg-slate-50">
           
           {/* TAB 0: जनसांख्यिकी (प्र. 1 से 9) */}
           {activeTab === 0 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {/* Q.1 व्यक्ति का नाम */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-900">
                     प्र. 1 व्यक्ति का नाम <span className="text-red-600 font-bold">*</span>
@@ -336,11 +352,15 @@ export default function MemberModal({
                   value={formData.q1_name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="व्यक्ति का वास्तविक नाम दर्ज करें"
-                  className={`w-full px-3 py-2 border rounded text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0B3B60] ${
+                  className={`w-full px-3 py-2 border rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                     errors.q1_name ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'
                   }`}
                   autoFocus
                 />
+                <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <Info className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span>आधिकारिक निर्देश: व्यक्ति का पूरा नाम बिना किसी उपाधि के लिखें।</span>
+                </p>
                 {errors.q1_name && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -350,7 +370,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.2 मुखिया से सम्बन्ध */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 2 परिवार के मुखिया से सम्बन्ध (कोड 01-32) <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -359,7 +379,7 @@ export default function MemberModal({
                     value={formData.q2_relationship}
                     onChange={(e) => setFormData({ ...formData, q2_relationship: Number(e.target.value) })}
                     disabled={formData.serial_no === 1}
-                    className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {RELATIONSHIP_CODES.map((r) => (
                       <option key={r.code} value={r.code}>
@@ -378,7 +398,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.3 लिंग */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1.5">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 3 लिंग <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -388,10 +408,10 @@ export default function MemberModal({
                       key={g.code}
                       type="button"
                       onClick={() => setFormData({ ...formData, q3_gender: g.code })}
-                      className={`py-2 px-2 rounded text-xs font-bold border transition-all ${
+                      className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${
                         formData.q3_gender === g.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       {g.label}
@@ -401,7 +421,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.4 जन्म तिथि और आयु */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -411,7 +431,7 @@ export default function MemberModal({
                       type="date"
                       value={formData.q4a_dob}
                       onChange={handleDobChange}
-                      className="w-full px-2.5 py-2 border border-slate-300 rounded text-xs bg-white font-medium focus:ring-1 focus:ring-[#0B3B60]"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                     />
                   </div>
 
@@ -425,12 +445,16 @@ export default function MemberModal({
                       value={formData.q4b_age}
                       onChange={(e) => handleAgeChange(e.target.value)}
                       placeholder="वर्ष (1 से कम = 0)"
-                      className={`w-full px-2.5 py-2 border rounded text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0B3B60] ${
+                      className={`w-full px-3 py-2 border rounded-lg text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                         errors.q4b_age ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'
                       }`}
                     />
                   </div>
                 </div>
+                <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <Info className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span>आधिकारिक निर्देश: आयु पूर्ण वर्षों में लिखें, 1 वर्ष से कम शिशु हेतु 0 दर्ज करें।</span>
+                </p>
                 {errors.q4b_age && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -440,7 +464,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.5 वैवाहिक स्थिति */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 5 वर्तमान वैवाहिक स्थिति <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -448,7 +472,7 @@ export default function MemberModal({
                   <select
                     value={formData.q5_marital_status}
                     onChange={(e) => setFormData({ ...formData, q5_marital_status: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {MARITAL_STATUS_CODES.map((m) => (
                       <option key={m.code} value={m.code}>
@@ -462,13 +486,13 @@ export default function MemberModal({
 
               {/* Q.6 & Q.7: यदि विवाहित हैं */}
               {isMarriedOrEver && (
-                <div className="bg-amber-50/80 p-3 rounded border border-amber-200 space-y-2">
+                <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 shadow-sm space-y-2.5">
                   <div className="text-[11px] font-bold text-amber-900 border-b border-amber-200 pb-1">
                     विवाहित सदस्यों हेतु (प्र. 6 एवं प्र. 7):
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-800 mb-0.5">
+                      <label className="block text-[11px] font-bold text-slate-800 mb-1">
                         प्र. 6 विवाह के समय आयु (वर्ष) <span className="text-red-600">*</span>
                       </label>
                       <input
@@ -477,7 +501,7 @@ export default function MemberModal({
                         value={formData.q6_age_at_marriage}
                         onChange={(e) => setFormData({ ...formData, q6_age_at_marriage: sanitizeNumeric(e.target.value) })}
                         placeholder="विवाह की आयु"
-                        className={`w-full px-2.5 py-1.5 border rounded text-xs bg-white font-bold ${
+                        className={`w-full px-3 py-1.5 border rounded-lg text-xs bg-white font-bold ${
                           errors.q6_age_at_marriage ? 'border-red-500' : 'border-slate-300'
                         }`}
                       />
@@ -487,7 +511,7 @@ export default function MemberModal({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-800 mb-0.5">
+                      <label className="block text-[11px] font-bold text-slate-800 mb-1">
                         प्र. 7 पति/पत्नी का परिवार में क्र.सं.
                       </label>
                       {potentialSpouses.length > 0 ? (
@@ -495,7 +519,7 @@ export default function MemberModal({
                           <select
                             value={formData.q7_spouse_serial_no}
                             onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: e.target.value })}
-                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-6"
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold appearance-none pr-6"
                           >
                             <option value="">परिवार में नहीं / अन्य</option>
                             {potentialSpouses.map((s) => (
@@ -513,7 +537,7 @@ export default function MemberModal({
                           value={formData.q7_spouse_serial_no}
                           onChange={(e) => setFormData({ ...formData, q7_spouse_serial_no: sanitizeNumeric(e.target.value) })}
                           placeholder="क्र.सं. दर्ज करें"
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                         />
                       )}
                     </div>
@@ -522,7 +546,7 @@ export default function MemberModal({
               )}
 
               {/* Q.8 & Q.9 धर्म */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 9 धर्म <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -530,7 +554,7 @@ export default function MemberModal({
                   <select
                     value={formData.q9_religion}
                     onChange={(e) => setFormData({ ...formData, q9_religion: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {RELIGION_CODES.map((rel) => (
                       <option key={rel.code} value={rel.code}>
@@ -551,7 +575,7 @@ export default function MemberModal({
                       value={formData.q9_religion_other}
                       onChange={(e) => setFormData({ ...formData, q9_religion_other: sanitizeText(e.target.value) })}
                       placeholder="धर्म का नाम"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                     />
                   </div>
                 )}
@@ -561,9 +585,9 @@ export default function MemberModal({
 
           {/* TAB 1: सामाजिक, माता-पिता एवं दिव्यांगता (प्र. 10 से 14) */}
           {activeTab === 1 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {/* Q.10 सामाजिक श्रेणी */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 10(क) सामाजिक श्रेणी (SC / ST / अन्य) <span className="text-red-600 font-bold">*</span>
                 </label>
@@ -571,7 +595,7 @@ export default function MemberModal({
                   <select
                     value={formData.q10a_sc_st}
                     onChange={(e) => setFormData({ ...formData, q10a_sc_st: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                   >
                     {SOCIAL_CATEGORY_CODES.map((sc) => (
                       <option key={sc.code} value={sc.code}>
@@ -592,7 +616,7 @@ export default function MemberModal({
                       value={formData.q10b_caste_code}
                       onChange={(e) => setFormData({ ...formData, q10b_caste_code: sanitizeText(e.target.value) })}
                       placeholder="जाति का नाम व कोड"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                     />
                   </div>
                 ) : (
@@ -605,14 +629,14 @@ export default function MemberModal({
                       value={formData.q10c_caste_name}
                       onChange={(e) => setFormData({ ...formData, q10c_caste_name: sanitizeText(e.target.value) })}
                       placeholder="जाति का नाम दर्ज करें"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                     />
                   </div>
                 )}
               </div>
 
               {/* Q.11 पिता का विवरण */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <span className="text-xs font-bold text-slate-900 block">प्र. 11 पिता का विवरण</span>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -630,7 +654,7 @@ export default function MemberModal({
                       <select
                         value={formData.q11_father_serial_no}
                         onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-8"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-bold appearance-none pr-8"
                       >
                         <option value="">परिवार में पिता का चयन करें</option>
                         {potentialFathers.map((f) => (
@@ -639,7 +663,7 @@ export default function MemberModal({
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
                   ) : (
                     <input
@@ -648,7 +672,7 @@ export default function MemberModal({
                       value={formData.q11_father_serial_no}
                       onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
                       placeholder="पिता का क्रम संख्या दर्ज करें (उदा. 1)"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                     />
                   )
                 ) : (
@@ -657,13 +681,13 @@ export default function MemberModal({
                     value={formData.q11_father_name}
                     onChange={(e) => setFormData({ ...formData, q11_father_name: sanitizeName(e.target.value) })}
                     placeholder="पिता का पूरा नाम"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                   />
                 )}
               </div>
 
               {/* Q.12 माता का विवरण */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <span className="text-xs font-bold text-slate-900 block">प्र. 12 माता का विवरण</span>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -681,7 +705,7 @@ export default function MemberModal({
                       <select
                         value={formData.q12_mother_serial_no}
                         onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold appearance-none pr-8"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-bold appearance-none pr-8"
                       >
                         <option value="">परिवार में माता का चयन करें</option>
                         {potentialMothers.map((m) => (
@@ -690,7 +714,7 @@ export default function MemberModal({
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
                   ) : (
                     <input
@@ -699,7 +723,7 @@ export default function MemberModal({
                       value={formData.q12_mother_serial_no}
                       onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
                       placeholder="माता का क्रम संख्या दर्ज करें (उदा. 2)"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                     />
                   )
                 ) : (
@@ -708,13 +732,13 @@ export default function MemberModal({
                     value={formData.q12_mother_name}
                     onChange={(e) => setFormData({ ...formData, q12_mother_name: sanitizeName(e.target.value) })}
                     placeholder="माता का पूरा नाम"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                   />
                 )}
               </div>
 
               {/* Q.13 दिव्यांगता */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 13 कोई दिव्यांगता है?
                 </label>
@@ -722,10 +746,10 @@ export default function MemberModal({
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, q13a_disabled: 1 })}
-                    className={`py-2 rounded font-bold text-xs border ${
+                    className={`py-2 rounded-lg font-bold text-xs border ${
                       formData.q13a_disabled === 1
                         ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300'
+                        : 'bg-white text-slate-700 border-slate-200'
                     }`}
                   >
                     1 - हाँ
@@ -733,10 +757,10 @@ export default function MemberModal({
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, q13a_disabled: 2 })}
-                    className={`py-2 rounded font-bold text-xs border ${
+                    className={`py-2 rounded-lg font-bold text-xs border ${
                       formData.q13a_disabled === 2
                         ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300'
+                        : 'bg-white text-slate-700 border-slate-200'
                     }`}
                   >
                     2 - नहीं
@@ -744,8 +768,8 @@ export default function MemberModal({
                 </div>
 
                 {formData.q13a_disabled === 1 && (
-                  <div className="pt-2 border-t border-slate-200">
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <div className="pt-2 border-t border-slate-100">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
                       दिव्यांगता के प्रकार (अधिकतम 3 चुनें):
                     </label>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -762,10 +786,10 @@ export default function MemberModal({
                                 : [...curr, d.code].slice(0, 3);
                               setFormData({ ...formData, q13b_disability_types: updated });
                             }}
-                            className={`px-2 py-1.5 rounded text-left text-[11px] font-medium border ${
+                            className={`px-2.5 py-2 rounded-lg text-left text-[11px] font-medium border ${
                               isChecked
                                 ? 'bg-amber-100 border-amber-400 text-amber-900 font-bold'
-                                : 'bg-slate-50 border-slate-300 text-slate-700'
+                                : 'bg-slate-50 border-slate-200 text-slate-700'
                             }`}
                           >
                             {d.label}
@@ -778,7 +802,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.14 मातृभाषा */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <label className="block text-xs font-bold text-slate-900 mb-1">
                   प्र. 14(क) मातृभाषा
                 </label>
@@ -787,7 +811,7 @@ export default function MemberModal({
                   value={formData.q14a_mother_tongue}
                   onChange={(e) => setFormData({ ...formData, q14a_mother_tongue: sanitizeText(e.target.value) })}
                   placeholder="हिन्दी / ब्रजभाषा / अन्य"
-                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                 />
               </div>
             </div>
@@ -795,9 +819,9 @@ export default function MemberModal({
 
           {/* TAB 2: साक्षरता एवं शिक्षा (प्र. 15 से 17) */}
           {activeTab === 2 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {age < 7 ? (
-                <div className="bg-slate-100 p-4 rounded border border-slate-300 text-center text-slate-700">
+                <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center text-slate-700">
                   <p className="font-bold text-xs">आयु 7 वर्ष से कम है ({age} वर्ष)</p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     जनगणना नियमावली अनुसार 7 वर्ष से कम आयु के बच्चों हेतु साक्षरता एवं शिक्षा लागू नहीं होती।
@@ -806,7 +830,7 @@ export default function MemberModal({
               ) : (
                 <>
                   {/* Q.15 साक्षरता */}
-                  <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                     <label className="block text-xs font-bold text-slate-900">
                       प्र. 15(क) साक्षरता की स्थिति (7 वर्ष +)
                     </label>
@@ -814,10 +838,10 @@ export default function MemberModal({
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, q15a_literacy: 1 })}
-                        className={`py-2 rounded font-bold text-xs border ${
+                        className={`py-2 rounded-lg font-bold text-xs border ${
                           formData.q15a_literacy === 1
                             ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-300'
+                            : 'bg-white text-slate-700 border-slate-200'
                         }`}
                       >
                         1 - साक्षर
@@ -825,10 +849,10 @@ export default function MemberModal({
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, q15a_literacy: 2 })}
-                        className={`py-2 rounded font-bold text-xs border ${
+                        className={`py-2 rounded-lg font-bold text-xs border ${
                           formData.q15a_literacy === 2
                             ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-300'
+                            : 'bg-white text-slate-700 border-slate-200'
                         }`}
                       >
                         2 - निरक्षर
@@ -843,10 +867,10 @@ export default function MemberModal({
                         <button
                           type="button"
                           onClick={() => setFormData({ ...formData, q15b_digital_literate: 1 })}
-                          className={`py-1.5 rounded font-bold text-xs border ${
+                          className={`py-1.5 rounded-lg font-bold text-xs border ${
                             formData.q15b_digital_literate === 1
                               ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                              : 'bg-white text-slate-700 border-slate-300'
+                              : 'bg-white text-slate-700 border-slate-200'
                           }`}
                         >
                           1 - हाँ
@@ -854,10 +878,10 @@ export default function MemberModal({
                         <button
                           type="button"
                           onClick={() => setFormData({ ...formData, q15b_digital_literate: 2 })}
-                          className={`py-1.5 rounded font-bold text-xs border ${
+                          className={`py-1.5 rounded-lg font-bold text-xs border ${
                             formData.q15b_digital_literate === 2
                               ? 'bg-slate-700 text-white border-slate-800'
-                              : 'bg-white text-slate-700 border-slate-300'
+                              : 'bg-white text-slate-700 border-slate-200'
                           }`}
                         >
                           2 - नहीं
@@ -867,7 +891,7 @@ export default function MemberModal({
                   </div>
 
                   {/* Q.16 शिक्षा संस्थान */}
-                  <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                     <label className="block text-xs font-bold text-slate-900">
                       प्र. 16 शैक्षणिक संस्थान में शिक्षा की स्थिति
                     </label>
@@ -875,7 +899,7 @@ export default function MemberModal({
                       <select
                         value={formData.q16_education_status}
                         onChange={(e) => setFormData({ ...formData, q16_education_status: Number(e.target.value) })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                       >
                         {EDUCATION_STATUS_CODES.map((ed) => (
                           <option key={ed.code} value={ed.code}>
@@ -889,7 +913,7 @@ export default function MemberModal({
 
                   {/* Q.17 उच्चतम शिक्षा स्तर */}
                   {formData.q15a_literacy === 1 && (
-                    <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2.5">
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2.5">
                       <div>
                         <label className="block text-xs font-bold text-slate-900 mb-1">
                           प्र. 17(क) उच्चतम शिक्षा स्तर (उत्तीर्ण)
@@ -898,7 +922,7 @@ export default function MemberModal({
                           <select
                             value={formData.q17a_highest_education}
                             onChange={(e) => setFormData({ ...formData, q17a_highest_education: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {EDUCATION_LEVEL_CODES.map((el) => (
                               <option key={el.code} value={el.code}>
@@ -920,7 +944,7 @@ export default function MemberModal({
                             <select
                               value={formData.q17b_subject}
                               onChange={(e) => setFormData({ ...formData, q17b_subject: Number(e.target.value) })}
-                              className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                             >
                               <option value="">विषय चुनें</option>
                               {EDUCATION_SUBJECT_CODES.map((sub) => (
@@ -942,16 +966,16 @@ export default function MemberModal({
 
           {/* TAB 3: कार्य एवं आर्थिक गतिविधि (प्र. 18 से 25) */}
           {activeTab === 3 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {age < 7 ? (
-                <div className="bg-slate-100 p-4 rounded border border-slate-300 text-center text-slate-700">
+                <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 text-center text-slate-700">
                   <p className="font-bold text-xs">आयु 7 वर्ष से कम है</p>
                   <p className="text-[11px] text-slate-500 mt-0.5">बच्चों पर कार्य संबंधी प्रश्न लागू नहीं हैं।</p>
                 </div>
               ) : (
                 <>
                   {/* Q.18 पिछला कार्य */}
-                  <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                     <label className="block text-xs font-bold text-slate-900">
                       प्र. 18 पिछले वर्ष कभी काम किया?
                     </label>
@@ -959,7 +983,7 @@ export default function MemberModal({
                       <select
                         value={formData.q18_work_last_year}
                         onChange={(e) => setFormData({ ...formData, q18_work_last_year: Number(e.target.value) })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                       >
                         {WORK_LAST_YEAR_CODES.map((w) => (
                           <option key={w.code} value={w.code}>
@@ -972,9 +996,9 @@ export default function MemberModal({
                   </div>
 
                   {isWorker ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3.5">
                       {/* Q.19 आर्थिक गतिविधि */}
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                         <label className="block text-xs font-bold text-slate-900">
                           प्र. 19 आर्थिक गतिविधि की श्रेणी
                         </label>
@@ -982,7 +1006,7 @@ export default function MemberModal({
                           <select
                             value={formData.q19_economic_activity}
                             onChange={(e) => setFormData({ ...formData, q19_economic_activity: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {ECONOMIC_ACTIVITY_CODES.map((ea) => (
                               <option key={ea.code} value={ea.code}>
@@ -995,7 +1019,7 @@ export default function MemberModal({
                       </div>
 
                       {/* Q.20 & Q.21 */}
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-800 mb-0.5">
                             प्र. 20 व्यवसाय (वास्तविक कार्य विवरण)
@@ -1005,7 +1029,7 @@ export default function MemberModal({
                             value={formData.q20_occupation}
                             onChange={(e) => setFormData({ ...formData, q20_occupation: sanitizeText(e.target.value) })}
                             placeholder="उदा. कृषि, पशुपालन, राजमिस्त्री, दुकानदार, शिक्षक"
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                           />
                         </div>
                         <div>
@@ -1017,13 +1041,13 @@ export default function MemberModal({
                             value={formData.q21_industry}
                             onChange={(e) => setFormData({ ...formData, q21_industry: sanitizeText(e.target.value) })}
                             placeholder="उद्योग अथवा सेवा का विवरण"
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                           />
                         </div>
                       </div>
 
                       {/* Q.22 कर्मी वर्ग */}
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                         <label className="block text-xs font-bold text-slate-900">
                           प्र. 22 कर्मी का वर्ग
                         </label>
@@ -1031,7 +1055,7 @@ export default function MemberModal({
                           <select
                             value={formData.q22_worker_class}
                             onChange={(e) => setFormData({ ...formData, q22_worker_class: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {WORKER_CLASS_CODES.map((wc) => (
                               <option key={wc.code} value={wc.code}>
@@ -1044,7 +1068,7 @@ export default function MemberModal({
                       </div>
 
                       {/* Q.25 यात्रा */}
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                         <label className="block text-xs font-bold text-slate-900">
                           प्र. 25(ग) कार्यस्थल तक यात्रा का साधन
                         </label>
@@ -1052,7 +1076,7 @@ export default function MemberModal({
                           <select
                             value={formData.q25c_travel_mode}
                             onChange={(e) => setFormData({ ...formData, q25c_travel_mode: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {COMMUTE_MODE_CODES.map((cm) => (
                               <option key={cm.code} value={cm.code}>
@@ -1075,7 +1099,7 @@ export default function MemberModal({
                                 value={formData.q25a_travel_distance_km}
                                 onChange={(e) => setFormData({ ...formData, q25a_travel_distance_km: sanitizeNumeric(e.target.value) })}
                                 placeholder="किमी"
-                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                               />
                             </div>
                             <div>
@@ -1088,7 +1112,7 @@ export default function MemberModal({
                                 value={formData.q25b_travel_time_min}
                                 onChange={(e) => setFormData({ ...formData, q25b_travel_time_min: sanitizeNumeric(e.target.value) })}
                                 placeholder="मिनट"
-                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                               />
                             </div>
                           </div>
@@ -1096,8 +1120,8 @@ export default function MemberModal({
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                    <div className="space-y-3.5">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                         <label className="block text-xs font-bold text-slate-900">
                           प्र. 23 गैर-आर्थिक गतिविधि
                         </label>
@@ -1105,7 +1129,7 @@ export default function MemberModal({
                           <select
                             value={formData.q23_non_economic_activity}
                             onChange={(e) => setFormData({ ...formData, q23_non_economic_activity: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-1 focus:ring-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {NON_ECONOMIC_ACTIVITY_CODES.map((ne) => (
                               <option key={ne.code} value={ne.code}>
@@ -1117,7 +1141,7 @@ export default function MemberModal({
                         </div>
                       </div>
 
-                      <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                         <label className="block text-xs font-bold text-slate-900 mb-1">
                           प्र. 24 काम की तलाश अथवा उपलब्धता
                         </label>
@@ -1131,10 +1155,10 @@ export default function MemberModal({
                               key={item.code}
                               type="button"
                               onClick={() => setFormData({ ...formData, q24_seeking_work: item.code })}
-                              className={`py-2 rounded font-bold text-xs border ${
+                              className={`py-2 rounded-lg font-bold text-xs border ${
                                 formData.q24_seeking_work === item.code
                                   ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                                  : 'bg-white text-slate-700 border-slate-300'
+                                  : 'bg-white text-slate-700 border-slate-200'
                               }`}
                             >
                               {item.label}
@@ -1151,9 +1175,9 @@ export default function MemberModal({
 
           {/* TAB 4: जन्म, प्रवास एवं पता (प्र. 26 से 30) */}
           {activeTab === 4 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {/* Q.26 जन्म स्थान */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs font-bold text-slate-900">प्र. 26 जन्म स्थान</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
@@ -1165,10 +1189,10 @@ export default function MemberModal({
                       key={item.code}
                       type="button"
                       onClick={() => setFormData({ ...formData, q26_birth_place_type: item.code })}
-                      className={`py-2 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q26_birth_place_type === item.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       {item.label}
@@ -1186,7 +1210,7 @@ export default function MemberModal({
                         <select
                           value={formData.q26_birth_state}
                           onChange={(e) => setFormData({ ...formData, q26_birth_state: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
                         >
                           {INDIAN_STATES.map((st) => (
                             <option key={st} value={st}>
@@ -1203,7 +1227,7 @@ export default function MemberModal({
                         value={formData.q26_birth_place_details}
                         onChange={(e) => setFormData({ ...formData, q26_birth_place_details: sanitizeText(e.target.value) })}
                         placeholder="जिला अथवा गाँव का नाम"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                       />
                     </div>
                   </div>
@@ -1211,7 +1235,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.27 पूर्व निवास स्थान */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs font-bold text-slate-900">प्र. 27 पूर्व निवास स्थान</label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
@@ -1224,10 +1248,10 @@ export default function MemberModal({
                       key={item.code}
                       type="button"
                       onClick={() => setFormData({ ...formData, q27_last_residence_type: item.code })}
-                      className={`py-2 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q27_last_residence_type === item.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       {item.label}
@@ -1245,7 +1269,7 @@ export default function MemberModal({
                         <select
                           value={formData.q27_last_residence_state}
                           onChange={(e) => setFormData({ ...formData, q27_last_residence_state: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
                         >
                           {INDIAN_STATES.map((st) => (
                             <option key={st} value={st}>
@@ -1265,7 +1289,7 @@ export default function MemberModal({
                         <select
                           value={formData.q28_migration_reason}
                           onChange={(e) => setFormData({ ...formData, q28_migration_reason: Number(e.target.value) })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded font-bold text-slate-800 bg-white appearance-none pr-8 text-xs"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white appearance-none pr-8 text-xs"
                         >
                           <option value="">कारण चुनें</option>
                           {MIGRATION_REASON_CODES.map((mr) => (
@@ -1288,7 +1312,7 @@ export default function MemberModal({
                         value={formData.q29_residence_duration_years}
                         onChange={(e) => setFormData({ ...formData, q29_residence_duration_years: sanitizeNumeric(e.target.value) })}
                         placeholder="वर्ष (1 से कम = 0)"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-bold"
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
                       />
                     </div>
                   </div>
@@ -1296,7 +1320,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.30 स्थायी निवास का पता */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <span className="text-xs font-bold text-slate-900 block">प्र. 30 स्थायी निवास का पता</span>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1314,7 +1338,7 @@ export default function MemberModal({
                     value={formData.q30_permanent_address}
                     onChange={(e) => setFormData({ ...formData, q30_permanent_address: sanitizeText(e.target.value) })}
                     placeholder="पूर्ण स्थायी पता दर्ज करें"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs bg-white font-medium"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                   />
                 )}
               </div>
@@ -1323,13 +1347,13 @@ export default function MemberModal({
 
           {/* TAB 5: प्रजनन विवरण (प्र. 31 से 33) */}
           {isFemale && isMarriedOrEver && activeTab === (tabs.findIndex(t => t.id === 'fertility')) && (
-            <div className="space-y-3 bg-amber-50/50 p-3 rounded border border-amber-300">
+            <div className="space-y-3.5 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 shadow-sm">
               <div className="text-xs font-bold text-slate-900 border-b border-amber-300 pb-1">
                 प्रजनन संबंधी विवरण (केवल कभी-विवाहित महिलाओं हेतु)
               </div>
 
               {/* Q.31 कभी जीवित जन्मी संतानें */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1.5">
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 31 कभी जीवित जन्मी कुल संतानें
                 </label>
@@ -1341,7 +1365,7 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q31_children_ever_born_female}
                       onChange={(e) => setFormData({ ...formData, q31_children_ever_born_female: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                   <div>
@@ -1351,14 +1375,14 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q31_children_ever_born_male}
                       onChange={(e) => setFormData({ ...formData, q31_children_ever_born_male: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Q.32 वर्तमान में जीवित संतानें */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1.5">
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 32 वर्तमान में जीवित संतानें
                 </label>
@@ -1370,7 +1394,7 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q32_children_surviving_female}
                       onChange={(e) => setFormData({ ...formData, q32_children_surviving_female: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                   <div>
@@ -1380,7 +1404,7 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q32_children_surviving_male}
                       onChange={(e) => setFormData({ ...formData, q32_children_surviving_male: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                 </div>
@@ -1390,7 +1414,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.33 पिछले 1 वर्ष में जन्मी संतानें */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1.5">
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 33 पिछले 1 वर्ष में जीवित जन्मी संतानें
                 </label>
@@ -1402,7 +1426,7 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q33_children_born_last_year_female}
                       onChange={(e) => setFormData({ ...formData, q33_children_born_last_year_female: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                   <div>
@@ -1412,7 +1436,7 @@ export default function MemberModal({
                       inputMode="numeric"
                       value={formData.q33_children_born_last_year_male}
                       onChange={(e) => setFormData({ ...formData, q33_children_born_last_year_male: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                     />
                   </div>
                 </div>
@@ -1425,21 +1449,21 @@ export default function MemberModal({
 
           {/* TAB: पहचान पत्र व बैंक (प्र. 34 से 40) */}
           {activeTab === tabs.length - 1 && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {/* Q.34 कोविड टीका & Q.35 बैंक खाता */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm grid grid-cols-2 gap-2">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-900 mb-1">
                     प्र. 34 कोविड-19 टीका
                   </label>
-                  <div className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, q34a_covid_vaccinated: 1 })}
-                      className={`py-1.5 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q34a_covid_vaccinated === 1
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       1-हाँ
@@ -1447,10 +1471,10 @@ export default function MemberModal({
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, q34a_covid_vaccinated: 2 })}
-                      className={`py-1.5 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q34a_covid_vaccinated === 2
                           ? 'bg-slate-700 text-white border-slate-800'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       2-नहीं
@@ -1467,13 +1491,13 @@ export default function MemberModal({
                     inputMode="numeric"
                     value={formData.q35_bank_accounts_count}
                     onChange={(e) => setFormData({ ...formData, q35_bank_accounts_count: sanitizeNumeric(e.target.value) })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold bg-white"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold bg-white"
                   />
                 </div>
               </div>
 
               {/* Q.36 मोबाइल नंबर */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <label className="block text-xs font-bold text-slate-900">
                   प्र. 36 मोबाइल नंबर (10 अंक)
                 </label>
@@ -1484,10 +1508,13 @@ export default function MemberModal({
                   value={formData.q36_mobile_number}
                   onChange={(e) => handleMobileChange(e.target.value)}
                   placeholder="10 अंकों का मोबाइल नंबर दर्ज करें"
-                  className={`w-full px-3 py-2 border rounded text-sm font-mono tracking-wider font-bold bg-white ${
+                  className={`w-full px-3 py-2 border rounded-lg text-sm font-mono tracking-wider font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                     errors.q36_mobile_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
                   }`}
                 />
+                <p className="text-[10px] text-slate-500">
+                  आधिकारिक निर्देश: प्रगणक द्वारा सत्यापन हेतु सक्रिय 10-अंकीय मोबाइल नंबर।
+                </p>
                 {errors.q36_mobile_number && (
                   <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1497,7 +1524,7 @@ export default function MemberModal({
               </div>
 
               {/* Q.37 आधार नंबर */}
-              <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-900">
                     प्र. 37 आधार नंबर (12 अंक)
@@ -1516,7 +1543,7 @@ export default function MemberModal({
                   value={formData.q37_aadhaar_number}
                   onChange={(e) => handleAadhaarChange(e.target.value)}
                   placeholder="12 अंकों का आधार नंबर दर्ज करें"
-                  className={`w-full px-3 py-2 border rounded text-sm font-mono tracking-wider font-bold bg-white ${
+                  className={`w-full px-3 py-2 border rounded-lg text-sm font-mono tracking-wider font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                     errors.q37_aadhaar_number ? 'border-red-500 bg-red-50' : 'border-slate-300'
                   }`}
                 />
@@ -1530,7 +1557,7 @@ export default function MemberModal({
 
               {/* Q.38 वोटर आईडी (18+ वर्ष) */}
               {age >= 18 ? (
-                <div className="bg-white p-3 rounded border border-slate-300 shadow-sm space-y-1">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
                   <label className="block text-xs font-bold text-slate-900">
                     प्र. 38 मतदाता पहचान पत्र (EPIC नंबर - 18 वर्ष+)
                   </label>
@@ -1539,7 +1566,7 @@ export default function MemberModal({
                     value={formData.q38_voter_id_epic}
                     onChange={(e) => handleVoterIdChange(e.target.value)}
                     placeholder="EPIC नंबर दर्ज करें (उदा. ABC1234567)"
-                    className={`w-full px-3 py-2 border rounded text-xs font-mono uppercase font-bold bg-white ${
+                    className={`w-full px-3 py-2 border rounded-lg text-xs font-mono uppercase font-bold bg-white focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                       errors.q38_voter_id_epic ? 'border-red-500' : 'border-slate-300'
                     }`}
                   />
@@ -1554,18 +1581,18 @@ export default function MemberModal({
 
               {/* Q.40 ड्राइविंग लाइसेंस (16+ वर्ष) */}
               {age >= 16 ? (
-                <div className="bg-white p-3 rounded border border-slate-300 shadow-sm">
-                  <label className="block text-xs font-bold text-slate-900 mb-1">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm">
+                  <label className="block text-xs font-bold text-slate-900 mb-1.5">
                     प्र. 40 ड्राइविंग लाइसेंस (16 वर्ष+)
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, q40_driving_license: 1 })}
-                      className={`py-2 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q40_driving_license === 1
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       1 - हाँ
@@ -1573,10 +1600,10 @@ export default function MemberModal({
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, q40_driving_license: 2 })}
-                      className={`py-2 rounded text-xs font-bold border ${
+                      className={`py-2 rounded-lg text-xs font-bold border ${
                         formData.q40_driving_license === 2
                           ? 'bg-slate-700 text-white border-slate-800'
-                          : 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
                       2 - नहीं
@@ -1590,12 +1617,12 @@ export default function MemberModal({
         </div>
 
         {/* Footer Navigation & Save */}
-        <div className="bg-slate-100 border-t border-slate-300 p-3 shrink-0 flex items-center justify-between gap-2">
+        <div className="bg-slate-100 border-t border-slate-200 p-3 shrink-0 flex items-center justify-between gap-2">
           {activeTab > 0 ? (
             <button
               type="button"
               onClick={() => setActiveTab((prev) => prev - 1)}
-              className="px-3.5 py-2 rounded bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all"
+              className="px-4 py-2 rounded-xl bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>पूर्व खंड</span>
@@ -1607,7 +1634,7 @@ export default function MemberModal({
               <button
                 type="button"
                 onClick={() => setActiveTab((prev) => prev + 1)}
-                className="px-4 py-2 rounded bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                className="px-4 py-2 rounded-xl bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
               >
                 <span>अगला खंड</span>
                 <ChevronRight className="w-4 h-4" />
@@ -1617,7 +1644,7 @@ export default function MemberModal({
             <button
               type="button"
               onClick={handleSaveMember}
-              className="px-5 py-2.5 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 shadow-md transition-all"
+              className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 shadow-md transition-all"
             >
               <Check className="w-4 h-4" />
               <span>सदस्य विवरणी सुरक्षित करें</span>

@@ -6,7 +6,9 @@ import {
   Settings, 
   Download, 
   PlusCircle, 
-  ListFilter
+  ListFilter,
+  ShieldCheck,
+  Edit2
 } from 'lucide-react';
 import { db } from '../db/db';
 import { syncPendingData } from '../db/supabase';
@@ -19,7 +21,12 @@ export default function Header({
   activeView,
   onViewChange,
   onOpenSettings,
-  villageName = 'मथुरा'
+  villageName = 'मथुरा',
+  sections = [
+    { id: '1', name: 'सेक्शन 1' },
+    { id: '2', name: 'सेक्शन 2' },
+    { id: '3', name: 'सेक्शन 3' }
+  ]
 }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -66,13 +73,13 @@ export default function Header({
       {/* 1. Official National Tricolor Accent Bar */}
       <div className="h-1 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808]" />
 
-      {/* 2. Official GoI & Census Portal Masthead (Exact se.census.gov.in standard) */}
-      <div className="bg-[#0B3B60] text-white px-3.5 py-2 border-b border-[#072F5F]">
+      {/* 2. Official GoI Masthead */}
+      <div className="bg-[#0B3B60] text-white px-3.5 py-2.5 border-b border-[#072F5F]">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           
           {/* Left: State Emblem + Official Department Branding */}
           <div className="flex items-center gap-2.5">
-            <div className="p-0.5 rounded bg-white/5 border border-white/10 shrink-0">
+            <div className="p-1 rounded-lg bg-white/10 border border-white/15 shrink-0 shadow-sm">
               <EmblemOfIndia className="w-7 h-9 text-amber-300" />
             </div>
 
@@ -89,7 +96,7 @@ export default function Header({
             </div>
           </div>
 
-          {/* Right: Census Circular Logo + Action Controls */}
+          {/* Right: Circular Logo + Tools */}
           <div className="flex items-center gap-2">
             <div className="hidden sm:block shrink-0">
               <CensusLogo className="w-9 h-9" />
@@ -99,7 +106,7 @@ export default function Header({
             <button
               onClick={exportAllDataToExcel}
               title="डेटा Excel में एक्सपोर्ट करें"
-              className="p-1.5 sm:px-2.5 sm:py-1 rounded bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white text-xs font-semibold flex items-center gap-1 transition-all active:scale-95"
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
             >
               <Download className="w-3.5 h-3.5 text-amber-300" />
               <span className="hidden sm:inline">Excel</span>
@@ -109,7 +116,7 @@ export default function Header({
             <button
               onClick={onOpenSettings}
               title="प्रशासनिक विन्यास एवं सेटिंग्स"
-              className="p-1.5 rounded bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white transition-all active:scale-95"
+              className="p-2 rounded-xl bg-[#134D7E] hover:bg-[#1A5B94] border border-white/20 text-white transition-all active:scale-95 shadow-sm"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -117,7 +124,7 @@ export default function Header({
             {/* View Mode Switcher */}
             <button
               onClick={() => onViewChange(activeView === 'form' ? 'list' : 'form')}
-              className="px-2.5 py-1 rounded bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-extrabold flex items-center gap-1 transition-all active:scale-95 shadow-sm"
+              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
             >
               {activeView === 'form' ? (
                 <>
@@ -135,62 +142,70 @@ export default function Header({
         </div>
       </div>
 
-      {/* 3. Section Navigation & Sync Engine Ribbon */}
-      <div className="bg-[#072F5F] px-3.5 py-1 text-xs text-white border-b border-[#052246]">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+      {/* 3. DYNAMIC CUSTOMIZABLE SECTIONS RIBBON */}
+      <div className="bg-[#072F5F] px-3.5 py-1.5 text-xs text-white border-b border-[#052246]">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
           
-          {/* Section Selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide mr-0.5">
-              ग्राम प्रभाग:
+          {/* Scrollable Dynamic Section Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide shrink-0">
+              प्रभाग:
             </span>
-            {['1', '2', '3'].map((sec) => (
+            {sections.map((sec) => (
               <button
-                key={sec}
-                onClick={() => onSectionChange(sec)}
-                className={`px-3 py-0.5 rounded text-xs font-bold transition-all border ${
-                  activeSection === sec
-                    ? 'bg-white text-[#0B3B60] border-white shadow-sm'
-                    : 'bg-[#0B3B60]/70 text-slate-200 border-white/10 hover:bg-[#0B3B60]'
+                key={sec.id}
+                onClick={() => onSectionChange(sec.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border whitespace-nowrap shadow-sm active:scale-95 ${
+                  activeSection === sec.id
+                    ? 'bg-white text-[#0B3B60] border-white font-extrabold'
+                    : 'bg-[#0B3B60]/80 text-slate-200 border-white/10 hover:bg-[#0B3B60]'
                 }`}
               >
-                भाग {sec}
+                {sec.name}
               </button>
             ))}
+
+            <button
+              onClick={onOpenSettings}
+              className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-amber-300 shrink-0 transition-all"
+              title="सेक्शन / टोले का नाम बदलें या नया जोड़ें"
+            >
+              <Edit2 className="w-3 h-3" />
+            </button>
           </div>
 
-          {/* Sync Status Badge & Button */}
-          <div className="flex items-center gap-2">
+          {/* Sync Status Badge */}
+          <div className="flex items-center gap-2 shrink-0">
             {isOnline ? (
-              <span className="flex items-center gap-1 text-[11px] text-emerald-300 font-medium">
+              <span className="flex items-center gap-1 text-[11px] text-emerald-300 font-medium hidden sm:inline-flex">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                नेटवर्क ऑनलाइन
+                ऑनलाइन
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[11px] text-amber-300 font-medium">
+              <span className="flex items-center gap-1 text-[11px] text-amber-300 font-medium hidden sm:inline-flex">
                 <WifiOff className="w-3 h-3 text-amber-300" />
-                ऑफ़लाइन प्रणाली
+                ऑफ़लाइन
               </span>
             )}
 
             <button
               onClick={handleSync}
               disabled={isSyncing}
-              className={`flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold border transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
                 pendingCount > 0
                   ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-sm animate-pulse'
                   : 'bg-[#134D7E] text-slate-200 border-white/10 hover:bg-[#1A5B94]'
               }`}
             >
               <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'समन्वय...' : pendingCount > 0 ? `${pendingCount} लंबित` : 'समन्वयित'}
+              {isSyncing ? 'समन्वय...' : pendingCount > 0 ? `${pendingCount} लंबित` : 'समन्वित'}
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* Notification Toast */}
+      {/* Sync Message Alert */}
       {syncMsg && (
         <div className="bg-amber-100 border-b border-amber-300 text-slate-900 px-3.5 py-1 text-center text-xs font-bold">
           {syncMsg}
