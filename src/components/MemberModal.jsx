@@ -41,6 +41,7 @@ import {
   MIGRATION_REASON_CODES
 } from '../constants/censusCodes';
 import { INDIAN_STATES } from '../constants/indiaLocations';
+import { getPotentialFathers, getPotentialMothers } from '../utils/familyTreeResolver';
 
 
 export default function MemberModal({
@@ -200,8 +201,8 @@ export default function MemberModal({
   const isWorker = Number(formData.q18_work_last_year) <= 3;
   const isClass11Plus = Number(formData.q17a_highest_education) >= 11;
 
-  const potentialFathers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 1);
-  const potentialMothers = householdMembers.filter(m => m.serial_no !== formData.serial_no && m.q3_gender === 2);
+  const potentialFathers = getPotentialFathers(formData, householdMembers);
+  const potentialMothers = getPotentialMothers(formData, householdMembers);
   const potentialSpouses = householdMembers.filter(m => m.serial_no !== formData.serial_no);
 
   const handleNameChange = (val) => {
@@ -1000,27 +1001,45 @@ export default function MemberModal({
                       <div className="relative">
                         <select
                           value={formData.q11_father_serial_no || ''}
-                          onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, q11_father_serial_no: e.target.value ? Number(e.target.value) : '' })}
                           className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
                         >
                           <option value="">-- पिता का चयन करें --</option>
-                          {potentialFathers.map((f) => (
-                            <option key={f.serial_no} value={f.serial_no}>
-                              क्र. {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष, पुरुष)
-                            </option>
-                          ))}
+                          {potentialFathers.map((f) => {
+                            const rel = RELATIONSHIP_CODES.find((r) => r.code === Number(f.q2_relationship));
+                            return (
+                              <option key={f.serial_no} value={f.serial_no}>
+                                क्र. {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष, {rel ? rel.label : 'सदस्य'})
+                              </option>
+                            );
+                          })}
                         </select>
                         <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                       </div>
                     ) : (
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.q11_father_serial_no || ''}
-                        onChange={(e) => setFormData({ ...formData, q11_father_serial_no: sanitizeNumeric(e.target.value) })}
-                        placeholder="पिता का क्रम संख्या लिखें (उदा. 1)"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white font-bold"
-                      />
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">परिवार में कोई योग्य पिता (आयु में 15+ वर्ष बड़े व नियमानुसार) उपस्थित नहीं हैं।</p>
+                            <p className="text-[11px] text-slate-600 mt-0.5">
+                              (मुखिया या भाई के पिता केवल 'माता/पिता (12)' हो सकते हैं; छोटा भाई या बेटा पिता नहीं हो सकता)।
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, q11_father_in_hh: false, q11_father_serial_no: null })}
+                          className="w-full py-2 bg-[#0B3B60] hover:bg-[#072F5F] text-white rounded-lg text-xs font-bold text-center transition-all"
+                        >
+                          परिवार से बाहर / दिवंगत विकल्प चुनें
+                        </button>
+                      </div>
+                    )}
+                    {errors.q11_father_serial_no && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.q11_father_serial_no}
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -1164,27 +1183,45 @@ export default function MemberModal({
                       <div className="relative">
                         <select
                           value={formData.q12_mother_serial_no || ''}
-                          onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: e.target.value ? Number(e.target.value) : '' })}
                           className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold appearance-none pr-8"
                         >
                           <option value="">-- माता का चयन करें --</option>
-                          {potentialMothers.map((m) => (
-                            <option key={m.serial_no} value={m.serial_no}>
-                              क्र. {m.serial_no} - {m.q1_name} ({m.q4b_age} वर्ष, महिला)
-                            </option>
-                          ))}
+                          {potentialMothers.map((m) => {
+                            const rel = RELATIONSHIP_CODES.find((r) => r.code === Number(m.q2_relationship));
+                            return (
+                              <option key={m.serial_no} value={m.serial_no}>
+                                क्र. {m.serial_no} - {m.q1_name} ({m.q4b_age} वर्ष, {rel ? rel.label : 'सदस्य'})
+                              </option>
+                            );
+                          })}
                         </select>
                         <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                       </div>
                     ) : (
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.q12_mother_serial_no || ''}
-                        onChange={(e) => setFormData({ ...formData, q12_mother_serial_no: sanitizeNumeric(e.target.value) })}
-                        placeholder="माता का क्रम संख्या लिखें (उदा. 2)"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white font-bold"
-                      />
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">परिवार में कोई योग्य माता (आयु में 15+ वर्ष बड़ी व नियमानुसार) उपस्थित नहीं हैं।</p>
+                            <p className="text-[11px] text-slate-600 mt-0.5">
+                              (मुखिया या बहन की माता केवल 'माता/पिता (12)' हो सकती हैं; छोटी बहन या बेटी माता नहीं हो सकती)।
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, q12_mother_in_hh: false, q12_mother_serial_no: null })}
+                          className="w-full py-2 bg-[#0B3B60] hover:bg-[#072F5F] text-white rounded-lg text-xs font-bold text-center transition-all"
+                        >
+                          परिवार से बाहर / दिवंगत विकल्प चुनें
+                        </button>
+                      </div>
+                    )}
+                    {errors.q12_mother_serial_no && (
+                      <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.q12_mother_serial_no}
+                      </p>
                     )}
                   </div>
                 ) : (

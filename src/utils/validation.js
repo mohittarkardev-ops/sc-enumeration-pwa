@@ -275,6 +275,19 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
     const fatherSNo = Number(member.q11_father_serial_no);
     if (fatherSNo === member.serial_no) {
       errors.q11_father_serial_no = 'पिता का क्र.सं. स्वयं का क्र.सं. नहीं हो सकता';
+    } else if (Array.isArray(existingMembers) && existingMembers.length > 0) {
+      const father = existingMembers.find((f) => f.serial_no === fatherSNo);
+      if (father) {
+        if (Number(father.q3_gender) !== 1) {
+          errors.q11_father_serial_no = 'पिता का लिंग केवल पुरुष (1) होना चाहिए';
+        } else if (father.q4b_age && member.q4b_age && Number(father.q4b_age) < Number(member.q4b_age) + 15) {
+          errors.q11_father_serial_no = `पिता की आयु (${father.q4b_age}) संतान (${member.q4b_age}) से कम से कम 15 वर्ष अधिक होनी चाहिए`;
+        } else if ((Number(member.q2_relationship) === 1 || Number(member.q2_relationship) === 13) && Number(father.q2_relationship) !== 12) {
+          errors.q11_father_serial_no = 'मुखिया या भाई/बहन के पिता केवल "माता/पिता (12)" कोड वाले बुजुर्ग सदस्य हो सकते हैं (छोटा/बड़ा भाई या अन्य नहीं)';
+        } else if (Number(member.q2_relationship) === 3 && Number(father.q2_relationship) === 3) {
+          errors.q11_father_serial_no = 'संतान का पिता दूसरा भाई/बहन नहीं हो सकता';
+        }
+      }
     }
   }
 
@@ -282,6 +295,19 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
     const motherSNo = Number(member.q12_mother_serial_no);
     if (motherSNo === member.serial_no) {
       errors.q12_mother_serial_no = 'माता का क्र.सं. स्वयं का क्र.सं. नहीं हो सकता';
+    } else if (Array.isArray(existingMembers) && existingMembers.length > 0) {
+      const mother = existingMembers.find((mot) => mot.serial_no === motherSNo);
+      if (mother) {
+        if (Number(mother.q3_gender) !== 2) {
+          errors.q12_mother_serial_no = 'माता का लिंग केवल महिला (2) होना चाहिए';
+        } else if (mother.q4b_age && member.q4b_age && Number(mother.q4b_age) < Number(member.q4b_age) + 15) {
+          errors.q12_mother_serial_no = `माता की आयु (${mother.q4b_age}) संतान (${member.q4b_age}) से कम से कम 15 वर्ष अधिक होनी चाहिए`;
+        } else if ((Number(member.q2_relationship) === 1 || Number(member.q2_relationship) === 13) && Number(mother.q2_relationship) !== 12) {
+          errors.q12_mother_serial_no = 'मुखिया या भाई/बहन की माता केवल "माता/पिता (12)" कोड वाली बुजुर्ग सदस्य हो सकती हैं';
+        } else if (Number(member.q2_relationship) === 3 && Number(mother.q2_relationship) === 3) {
+          errors.q12_mother_serial_no = 'संतान की माता दूसरी बहन/भाई नहीं हो सकती';
+        }
+      }
     }
   }
 

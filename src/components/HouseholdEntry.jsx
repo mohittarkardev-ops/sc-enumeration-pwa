@@ -32,7 +32,7 @@ import {
 } from '../constants/censusCodes';
 import MemberModal from './MemberModal';
 import QuickMemberModal from './QuickMemberModal';
-import { resolveFamilyRelationships, getMemberDropdownOptions } from '../utils/familyTreeResolver';
+import { resolveFamilyRelationships, getMemberDropdownOptions, getPotentialFathers, getPotentialMothers } from '../utils/familyTreeResolver';
 import { syncPendingData } from '../db/supabase';
 import { sanitizeAlphanumeric, sanitizeText } from '../utils/validation';
 
@@ -727,8 +727,8 @@ export default function HouseholdEntry({
             <div className="space-y-3">
               {members.map((m, idx) => {
                 const potentialSpouses = getMemberDropdownOptions(members, m.serial_no);
-                const potentialFathers = members.filter((f) => f.serial_no !== m.serial_no && Number(f.q3_gender) === 1);
-                const potentialMothers = members.filter((mot) => mot.serial_no !== m.serial_no && Number(mot.q3_gender) === 2);
+                const potentialFathers = getPotentialFathers(m, members);
+                const potentialMothers = getPotentialMothers(m, members);
 
                 return (
                   <div key={m.serial_no} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
@@ -780,7 +780,7 @@ export default function HouseholdEntry({
                           <option value="00">00 - परिवार से बाहर / मृत</option>
                           {potentialFathers.map((f) => (
                             <option key={f.serial_no} value={f.serial_no}>
-                              {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष)
+                              {f.serial_no} - {f.q1_name} ({f.q4b_age} वर्ष, {getRelLabel(f.q2_relationship)})
                             </option>
                           ))}
                         </select>
@@ -801,7 +801,7 @@ export default function HouseholdEntry({
                           <option value="00">00 - परिवार से बाहर / मृत</option>
                           {potentialMothers.map((mot) => (
                             <option key={mot.serial_no} value={mot.serial_no}>
-                              {mot.serial_no} - {mot.q1_name} ({mot.q4b_age} वर्ष)
+                              {mot.serial_no} - {mot.q1_name} ({mot.q4b_age} वर्ष, {getRelLabel(mot.q2_relationship)})
                             </option>
                           ))}
                         </select>
