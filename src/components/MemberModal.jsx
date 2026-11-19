@@ -117,6 +117,7 @@ export default function MemberModal({
     q27_last_residence_type: 'here',
     q27_last_residence_state: 'उत्तर प्रदेश (Uttar Pradesh)',
     q27_last_residence_details: '',
+    q27b_rural_urban: 1,
     q28_migration_reason: '',
     q29_residence_duration_years: '',
     q30_permanent_address_same: true,
@@ -2028,6 +2029,36 @@ export default function MemberModal({
 
                     <div>
                       <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
+                        27(ख) पूर्व निवास के समय वह क्षेत्र था:
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, q27b_rural_urban: 1 })}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold border ${
+                            (formData.q27b_rural_urban || 1) === 1
+                              ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          1 - ग्रामीण
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, q27b_rural_urban: 2 })}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold border ${
+                            formData.q27b_rural_urban === 2
+                              ? 'bg-[#0B3B60] text-white border-[#072F5F]'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          2 - शहरी
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
                         प्र. 28 स्थान परिवर्तन का कारण
                       </label>
                       <div className="relative">
@@ -2097,11 +2128,49 @@ export default function MemberModal({
                 प्रजनन संबंधी विवरण (केवल कभी-विवाहित महिलाओं हेतु)
               </div>
 
-              {/* Q.31 कभी जीवित जन्मी संतानें */}
+              {/* Q.31 वर्तमान में जीवित संतानें (Matching Official Schedule Col 31) */}
               <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 31 कभी जीवित जन्मी कुल संतानें
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 31 वर्तमान में जीवित संतानें (Surviving Children)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">अनुसूची स्तम्भ 31</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-slate-600 font-semibold">पुत्री (कन्याएँ)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.q32_children_surviving_female}
+                      onChange={(e) => setFormData({ ...formData, q32_children_surviving_female: sanitizeNumeric(e.target.value) })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 font-semibold">पुत्र (बालक)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formData.q32_children_surviving_male}
+                      onChange={(e) => setFormData({ ...formData, q32_children_surviving_male: sanitizeNumeric(e.target.value) })}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
+                    />
+                  </div>
+                </div>
+                {errors.q32_children_surviving && (
+                  <p className="text-[11px] text-red-600 font-semibold mt-1">{errors.q32_children_surviving}</p>
+                )}
+              </div>
+
+              {/* Q.32 कभी जीवित जन्मी कुल संतानें (Matching Official Schedule Col 32) */}
+              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 32 कभी जीवित जन्मी कुल संतानें (Children Ever Born Alive)
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">अनुसूची स्तम्भ 32</span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs text-slate-600 font-semibold">पुत्री (कन्याएँ)</label>
@@ -2126,43 +2195,14 @@ export default function MemberModal({
                 </div>
               </div>
 
-              {/* Q.32 वर्तमान में जीवित संतानें */}
+              {/* Q.33 पिछले 1 वर्ष में जन्मी संतानें (Matching Official Schedule Col 33) */}
               <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 32 वर्तमान में जीवित संतानें
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-slate-600 font-semibold">पुत्री</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.q32_children_surviving_female}
-                      onChange={(e) => setFormData({ ...formData, q32_children_surviving_female: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-600 font-semibold">पुत्र</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.q32_children_surviving_male}
-                      onChange={(e) => setFormData({ ...formData, q32_children_surviving_male: sanitizeNumeric(e.target.value) })}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
-                    />
-                  </div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 33 पिछले 1 वर्ष में जीवित जन्मी संतानें
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">अनुसूची स्तम्भ 33</span>
                 </div>
-                {errors.q32_children_surviving && (
-                  <p className="text-[11px] text-red-600 font-semibold mt-1">{errors.q32_children_surviving}</p>
-                )}
-              </div>
-
-              {/* Q.33 पिछले 1 वर्ष में जन्मी संतानें */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 33 पिछले 1 वर्ष में जीवित जन्मी संतानें
-                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs text-slate-600 font-semibold">पुत्री</label>

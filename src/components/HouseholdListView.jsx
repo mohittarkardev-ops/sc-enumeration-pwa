@@ -15,11 +15,13 @@ import {
   Edit3,
   Phone,
   Layers,
-  MapPin
+  MapPin,
+  FileText
 } from 'lucide-react';
 import { db } from '../db/db';
 import { exportAllDataToExcel } from '../utils/exportExcel';
 import { syncPendingData } from '../db/supabase';
+import CensusProformaView from './CensusProformaView';
 
 export default function HouseholdListView({ activeSection, onNewEntry, onEditHousehold }) {
   const [allHouseholds, setAllHouseholds] = useState([]);
@@ -30,6 +32,8 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
   const [pullMsg, setPullMsg] = useState('');
   const [sectionFilter, setSectionFilter] = useState(activeSection || 'all');
   const [sectionsList, setSectionsList] = useState([]);
+  const [selectedProformaHh, setSelectedProformaHh] = useState(null);
+  const [selectedProformaMembers, setSelectedProformaMembers] = useState([]);
 
   // Load all households, members, and dynamic sections from IndexedDB
   const loadData = useCallback(async () => {
@@ -122,6 +126,13 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
     }
   };
 
+  const handleOpenProforma = (hh) => {
+    const hhMems = members.filter((m) => m.household_local_id === hh.local_id);
+    hhMems.sort((a, b) => Number(a.serial_no || 0) - Number(b.serial_no || 0));
+    setSelectedProformaHh(hh);
+    setSelectedProformaMembers(hhMems);
+  };
+
   // Safe section matching (handles '1', 1, 'सेक्शन 1', custom names like 'यादव टोला')
   const matchesSection = (h, filter) => {
     if (!filter || filter === 'all') return true;
@@ -195,6 +206,22 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
             >
               <Download className="w-4 h-4 text-amber-300" />
               <span className="hidden xs:inline">Excel</span>
+            </button>
+
+            {/* Official Census Schedule Proforma PDF Button */}
+            <button
+              onClick={() => {
+                if (filteredHouseholds.length === 0) {
+                  alert('प्रपत्र देखने के लिए कम से कम एक परिवार दर्ज होना आवश्यक है!');
+                  return;
+                }
+                handleOpenProforma(filteredHouseholds[0]);
+              }}
+              title="आधिकारिक जनगणना परिवार प्रपत्र (PDF / प्रिंट)"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0B3B60] hover:bg-[#072F5F] text-white text-xs sm:text-sm font-bold shadow-sm active:scale-95 transition-all min-h-[40px]"
+            >
+              <FileText className="w-4 h-4 text-amber-300" />
+              <span>प्रपत्र PDF</span>
             </button>
           </div>
         </div>
@@ -374,6 +401,15 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
 
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => handleOpenProforma(h)}
+                          title="इस परिवार का आधिकारिक परिवार प्रपत्र (PDF / प्रिंट) देखें"
+                          className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs sm:text-sm font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all min-h-[38px]"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-amber-700" />
+                          <span>प्रपत्र PDF</span>
+                        </button>
+
+                        <button
                           onClick={() => onEditHousehold(h, hhMembers)}
                           className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#0B3B60] text-xs sm:text-sm font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all min-h-[38px]"
                         >
@@ -437,6 +473,14 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
           })}
         </div>
       )}
+
+      {/* Official Census Proforma View & Print Modal */}
+      <CensusProformaView
+        isOpen={!!selectedProformaHh}
+        onClose={() => setSelectedProformaHh(null)}
+        household={selectedProformaHh}
+        members={selectedProformaMembers}
+      />
     </div>
   );
 }

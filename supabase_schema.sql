@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS members (
     q26_birth_place_details TEXT,
     q27_last_residence_type TEXT DEFAULT 'here',    -- 'here', 'rural', 'urban', 'outside'
     q27_last_residence_details TEXT,
+    q27b_rural_urban INTEGER DEFAULT 1 CHECK (q27b_rural_urban IN (1, 2)), -- 1-ग्रामीण, 2-शहरी
     q28_migration_reason INTEGER,                   -- 1 से 8
     q29_residence_duration_years INTEGER,
     q30_permanent_address_same BOOLEAN DEFAULT TRUE,
