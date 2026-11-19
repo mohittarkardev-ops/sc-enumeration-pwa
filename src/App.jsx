@@ -102,6 +102,7 @@ export default function App() {
   const handleCancelEditing = () => {
     setEditingHousehold(null);
     setEditingMembers([]);
+    setActiveView('list');
   };
 
   if (!isUnlocked) {
@@ -142,6 +143,7 @@ export default function App() {
             onHouseholdSaved={() => {
               setEditingHousehold(null);
               setEditingMembers([]);
+              setActiveView('list');
             }}
           />
         ) : (

@@ -23,23 +23,72 @@ export const getSupabaseConfig = () => {
   return { url, anonKey };
 };
 
+const DELETED_HH_KEY = 'CENSUS_DELETED_HOUSEHOLDS_QUEUE';
+
+let cachedClient = null;
+let cachedUrl = null;
+let cachedKey = null;
+
+export const resetSupabaseClientCache = () => {
+  cachedClient = null;
+  cachedUrl = null;
+  cachedKey = null;
+};
+
 export const setSupabaseConfig = (rawUrl, anonKey) => {
   const cleanUrl = normalizeSupabaseUrl(rawUrl);
   localStorage.setItem(SUPABASE_URL_KEY, cleanUrl);
   localStorage.setItem(SUPABASE_ANON_KEY, (anonKey || '').trim());
+  resetSupabaseClientCache();
 };
 
 export const getSupabaseClient = (customUrl, customKey) => {
   const url = customUrl ? normalizeSupabaseUrl(customUrl) : getSupabaseConfig().url;
   const anonKey = customKey !== undefined ? (customKey || '').trim() : getSupabaseConfig().anonKey;
   if (!url || !anonKey) return null;
+
+  // Return cached singleton to avoid creating multiple GoTrueClient instances
+  if (cachedClient && cachedUrl === url && cachedKey === anonKey) {
+    return cachedClient;
+  }
+
   try {
-    return createClient(url, anonKey, {
-      auth: { persistSession: false }
+    cachedClient = createClient(url, anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+      }
     });
+    cachedUrl = url;
+    cachedKey = anonKey;
+    return cachedClient;
   } catch (err) {
     console.error('डेटाबेस इनिशियलाइज़ेशन त्रुटि:', err);
     return null;
+  }
+};
+
+/**
+ * Queue helpers for tracking locally deleted households across devices
+ */
+export const getDeletedHouseholdIds = () => {
+  try {
+    const raw = localStorage.getItem(DELETED_HH_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch (e) {
+    return new Set();
+  }
+};
+
+export const saveDeletedHouseholdIds = (idSet) => {
+  try {
+    const arr = Array.from(idSet || []);
+    localStorage.setItem(DELETED_HH_KEY, JSON.stringify(arr));
+  } catch (e) {
+    console.warn('Could not persist deleted households queue:', e);
   }
 };
 
@@ -204,6 +253,16 @@ export const pushPendingLocalData = async (supabase) => {
       .equals(hh.local_id)
       .toArray();
 
+    // Clean up any obsolete members in Supabase deleted during household edit
+    const activeMemberLocalIds = pendingMembers.map((m) => m.local_id).filter(Boolean);
+    if (supabaseHouseholdId && activeMemberLocalIds.length > 0) {
+      await supabase
+        .from('members')
+        .delete()
+        .eq('household_id', supabaseHouseholdId)
+        .not('local_id', 'in', `(${activeMemberLocalIds.join(',')})`);
+    }
+
     for (const m of pendingMembers) {
       const memberLocalId = m.local_id || `mem_${hh.local_id}_${m.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
       const memberPayload = {
@@ -301,6 +360,30 @@ export const pushPendingLocalData = async (supabase) => {
  * 2. PULL: Downloads remote households and members from Supabase into local Dexie IndexedDB
  */
 export const pullRemoteData = async (supabase) => {
+  // 0. Flush any pending offline deletions first
+  const deletedQueue = getDeletedHouseholdIds();
+  if (deletedQueue.size > 0) {
+    for (const delId of Array.from(deletedQueue)) {
+      try {
+        const { data: remoteHh } = await supabase
+          .from('households')
+          .select('id')
+          .eq('local_id', delId)
+          .maybeSingle();
+
+        if (remoteHh?.id) {
+          await supabase.from('members').delete().eq('household_id', remoteHh.id);
+        }
+        await supabase.from('members').delete().eq('household_local_id', delId);
+        await supabase.from('households').delete().eq('local_id', delId);
+        deletedQueue.delete(delId);
+      } catch (e) {
+        console.warn(`Error flushing remote deletion for ${delId}:`, e);
+      }
+    }
+    saveDeletedHouseholdIds(deletedQueue);
+  }
+
   // 1. Fetch all remote households from Supabase
   const { data: remoteHhs, error: hhErr } = await supabase
     .from('households')
@@ -323,13 +406,28 @@ export const pullRemoteData = async (supabase) => {
     throw new Error('सदस्य डाउनलोड त्रुटि: ' + memErr.message);
   }
 
+  // Filter out any remote household that was queued for deletion
+  const activeRemoteHhs = (remoteHhs || []).filter((rh) => !deletedQueue.has(rh.local_id || rh.id));
+
+  // 3. Bidirectional Remote Deletion Propagation:
+  // If a local household was already synced, but is no longer present on the cloud,
+  // it was deleted on another device or directly on Supabase! Delete it locally too.
+  const remoteLocalIdSet = new Set(activeRemoteHhs.map((r) => r.local_id || r.id));
+  const localHouseholds = await db.households.toArray();
+  for (const lh of localHouseholds) {
+    if (lh.sync_status === 'synced' && !remoteLocalIdSet.has(lh.local_id)) {
+      await db.households.delete(lh.local_id);
+      await db.members.where('household_local_id').equals(lh.local_id).delete();
+    }
+  }
+
   let downloadedHhCount = 0;
   let downloadedMemCount = 0;
 
   // Build Supabase ID -> local_id mapping
   const supabaseIdToLocalId = {};
 
-  for (const rh of (remoteHhs || [])) {
+  for (const rh of activeRemoteHhs) {
     const localId = rh.local_id || rh.id;
     supabaseIdToLocalId[rh.id] = localId;
 
@@ -351,6 +449,8 @@ export const pullRemoteData = async (supabase) => {
     const memLocalId = rm.local_id || rm.id;
     const parentLocalId = supabaseIdToLocalId[rm.household_id] || rm.household_id;
 
+    if (deletedQueue.has(parentLocalId)) continue;
+
     const existing = await db.members.get(memLocalId);
     if (!existing || existing.sync_status === 'synced') {
       await db.members.put({
@@ -364,7 +464,7 @@ export const pullRemoteData = async (supabase) => {
   }
 
   return {
-    totalRemoteHhs: (remoteHhs || []).length,
+    totalRemoteHhs: activeRemoteHhs.length,
     totalRemoteMems: (remoteMems || []).length,
     downloadedHhCount,
     downloadedMemCount
@@ -372,12 +472,62 @@ export const pullRemoteData = async (supabase) => {
 };
 
 /**
- * Helper to extract sections from a Supabase row
+ * 2B. COMPLETE BIDIRECTIONAL HOUSEHOLD DELETION
+ * Deletes household and all its members from local IndexedDB and cloud Supabase,
+ * and tracks the deletion so background pull synchronization cannot resurrect it.
+ */
+export const deleteHouseholdRecord = async (localId) => {
+  if (!localId) return { success: false };
+
+  try {
+    // 1. Delete immediately from local Dexie IndexedDB
+    await db.households.delete(localId);
+    await db.members.where('household_local_id').equals(localId).delete();
+
+    // 2. Record in deletion tracking queue to prevent resurrection by concurrent pulls
+    const deletedSet = getDeletedHouseholdIds();
+    deletedSet.add(localId);
+    saveDeletedHouseholdIds(deletedSet);
+
+    // 3. Delete from Supabase cloud if client is available and online
+    const supabase = getSupabaseClient();
+    if (supabase && navigator.onLine) {
+      try {
+        const { data: remoteHh } = await supabase
+          .from('households')
+          .select('id')
+          .eq('local_id', localId)
+          .maybeSingle();
+
+        if (remoteHh?.id) {
+          await supabase.from('members').delete().eq('household_id', remoteHh.id);
+        }
+        await supabase.from('members').delete().eq('household_local_id', localId);
+        await supabase.from('households').delete().eq('local_id', localId);
+
+        // Deletion confirmed remotely
+        deletedSet.delete(localId);
+        saveDeletedHouseholdIds(deletedSet);
+      } catch (err) {
+        console.warn('क्लाउड से परिवार हटाने में त्रुटि (ऑफ़लाइन कतार में सुरक्षित):', err);
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('परिवार हटाने में विफलता:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Helper to extract sections and extra configuration from a Supabase row
  */
 export const extractSectionsFromRow = (rs, fallbackSections = []) => {
-  if (!rs) return fallbackSections;
+  if (!rs) return { sections: fallbackSections, cleanVillageCode: '', extraSettings: {} };
   let extracted = null;
   let cleanVillageCode = rs.village_code || '';
+  let extraSettings = {};
 
   // 1. Try dedicated sections column
   if (rs.sections) {
@@ -388,13 +538,23 @@ export const extractSectionsFromRow = (rs, fallbackSections = []) => {
     }
   }
 
-  // 2. Try encoded sections inside village_code
+  // 2. Try encoded sections and numbering settings inside village_code
   if (cleanVillageCode.includes(':::SECTIONS:::')) {
     const parts = cleanVillageCode.split(':::SECTIONS:::');
     cleanVillageCode = parts[0].trim();
-    if ((!extracted || !Array.isArray(extracted) || extracted.length === 0) && parts[1]) {
+    if (parts[1]) {
       try {
-        extracted = JSON.parse(parts[1]);
+        const parsed = JSON.parse(parts[1]);
+        if (Array.isArray(parsed)) {
+          if (!extracted || !Array.isArray(extracted) || extracted.length === 0) {
+            extracted = parsed;
+          }
+        } else if (parsed && typeof parsed === 'object') {
+          extraSettings = parsed;
+          if ((!extracted || !Array.isArray(extracted) || extracted.length === 0) && Array.isArray(parsed.sections)) {
+            extracted = parsed.sections;
+          }
+        }
       } catch (e) {
         console.warn('Encoded sections parse error:', e);
       }
@@ -405,7 +565,7 @@ export const extractSectionsFromRow = (rs, fallbackSections = []) => {
     ? extracted
     : fallbackSections;
 
-  return { sections: finalSections, cleanVillageCode };
+  return { sections: finalSections, cleanVillageCode, extraSettings };
 };
 
 /**
@@ -442,7 +602,7 @@ export const syncSettingsBidirectional = async (supabase) => {
     const hasRemote = remoteSettings && remoteSettings.length > 0;
     const rs = hasRemote ? remoteSettings[0] : null;
 
-    const { sections: remoteSections, cleanVillageCode } = extractSectionsFromRow(rs, defaultSections);
+    const { sections: remoteSections, cleanVillageCode, extraSettings } = extractSectionsFromRow(rs, defaultSections);
     const localSections = (local.sections && Array.isArray(local.sections) && local.sections.length > 0)
       ? local.sections
       : defaultSections;
@@ -495,11 +655,11 @@ export const syncSettingsBidirectional = async (supabase) => {
         ward_village_name: rs.ward_village_name || local.ward_village_name || '',
         village_code: cleanVillageCode || local.village_code || '',
         enumeration_block_no: rs.enumeration_block_no || local.enumeration_block_no || '001',
-        active_section: rs.active_section || local.active_section || '1',
+        active_section: rs.active_section || extraSettings.active_section || local.active_section || '1',
         sections: finalSections,
-        last_building_no: rs.last_building_no || local.last_building_no || '001',
-        last_census_house_no: rs.last_census_house_no || local.last_census_house_no || '001',
-        last_household_no: rs.last_household_no || local.last_household_no || '001',
+        last_building_no: rs.last_building_no || extraSettings.last_building_no || local.last_building_no || '001',
+        last_census_house_no: rs.last_census_house_no || extraSettings.last_census_house_no || local.last_census_house_no || '001',
+        last_household_no: rs.last_household_no || extraSettings.last_household_no || local.last_household_no || '001',
         supabase_setting_id: rs.id,
         updated_at: rs.updated_at || new Date().toISOString()
       };
@@ -514,53 +674,82 @@ export const syncSettingsBidirectional = async (supabase) => {
     } else {
       // PUSH: Local is newer or remote does not exist
       const rawVillageCode = String(local.village_code || '').split(':::SECTIONS:::')[0].trim();
-      const encodedVillageCode = `${rawVillageCode}:::SECTIONS:::${JSON.stringify(finalSections)}`;
-
-      const payload = {
-        enumerator_id: local.enumerator_id || 'ENUM-001',
-        enumerator_name: local.enumerator_name || 'प्रगणक',
-        state_name: local.state_name || 'उत्तर प्रदेश (Uttar Pradesh)',
-        district_name: local.district_name || 'मथुरा (Mathura)',
-        tehsil_block: local.tehsil_block || 'मथुरा (Mathura)',
-        ward_village_name: local.ward_village_name || '',
-        village_code: encodedVillageCode,
-        enumeration_block_no: local.enumeration_block_no || '001',
+      const extraPayload = {
+        sections: finalSections,
         active_section: String(local.active_section || '1'),
         last_building_no: String(local.last_building_no || '001'),
         last_census_house_no: String(local.last_census_house_no || '001'),
-        last_household_no: String(local.last_household_no || '001'),
-        updated_at: local.updated_at || new Date().toISOString()
+        last_household_no: String(local.last_household_no || '001')
       };
-
-      const payloadWithDedicatedSections = { ...payload, sections: finalSections };
+      const encodedVillageCode = `${rawVillageCode}:::SECTIONS:::${JSON.stringify(extraPayload)}`;
 
       if (hasRemote) {
-        let { error: updateErr } = await supabase
-          .from('enumerator_settings')
-          .update(payloadWithDedicatedSections)
-          .eq('id', rs.id);
+        // Safe Patch: Filter update payload to ONLY columns that exist in rs to prevent 400 Bad Request
+        const remoteKeys = new Set(Object.keys(rs));
+        const safePayload = {};
 
-        if (updateErr) {
-          const fallback = await supabase
-            .from('enumerator_settings')
-            .update(payload)
-            .eq('id', rs.id);
-          updateErr = fallback.error;
-        }
+        if (remoteKeys.has('enumerator_id')) safePayload.enumerator_id = local.enumerator_id || 'ENUM-001';
+        if (remoteKeys.has('enumerator_name')) safePayload.enumerator_name = local.enumerator_name || 'प्रगणक';
+        if (remoteKeys.has('state_name')) safePayload.state_name = local.state_name || 'उत्तर प्रदेश (Uttar Pradesh)';
+        if (remoteKeys.has('district_name')) safePayload.district_name = local.district_name || 'मथुरा (Mathura)';
+        if (remoteKeys.has('tehsil_block')) safePayload.tehsil_block = local.tehsil_block || 'मथुरा (Mathura)';
+        if (remoteKeys.has('ward_village_name')) safePayload.ward_village_name = local.ward_village_name || '';
+        if (remoteKeys.has('enumeration_block_no')) safePayload.enumeration_block_no = local.enumeration_block_no || '001';
+        if (remoteKeys.has('village_code')) safePayload.village_code = encodedVillageCode;
+        if (remoteKeys.has('active_section')) safePayload.active_section = String(local.active_section || '1');
+        if (remoteKeys.has('sections')) safePayload.sections = finalSections;
+        if (remoteKeys.has('last_building_no')) safePayload.last_building_no = String(local.last_building_no || '001');
+        if (remoteKeys.has('last_census_house_no')) safePayload.last_census_house_no = String(local.last_census_house_no || '001');
+        if (remoteKeys.has('last_household_no')) safePayload.last_household_no = String(local.last_household_no || '001');
+        if (remoteKeys.has('updated_at')) safePayload.updated_at = new Date().toISOString();
+
+        const { error: updateErr } = await supabase
+          .from('enumerator_settings')
+          .update(safePayload)
+          .eq('id', rs.id);
 
         if (updateErr) {
           console.warn('लोकेशन सेटिंग्स अपडेट विफलता:', updateErr.message);
           return { success: false, error: updateErr.message };
         }
       } else {
+        const insertPayload = {
+          enumerator_id: local.enumerator_id || 'ENUM-001',
+          enumerator_name: local.enumerator_name || 'प्रगणक',
+          state_name: local.state_name || 'उत्तर प्रदेश (Uttar Pradesh)',
+          district_name: local.district_name || 'मथुरा (Mathura)',
+          tehsil_block: local.tehsil_block || 'मथुरा (Mathura)',
+          ward_village_name: local.ward_village_name || '',
+          village_code: encodedVillageCode,
+          enumeration_block_no: local.enumeration_block_no || '001',
+          active_section: String(local.active_section || '1'),
+          sections: finalSections,
+          last_building_no: String(local.last_building_no || '001'),
+          last_census_house_no: String(local.last_census_house_no || '001'),
+          last_household_no: String(local.last_household_no || '001'),
+          updated_at: new Date().toISOString()
+        };
+
         let { error: insertErr } = await supabase
           .from('enumerator_settings')
-          .insert([payloadWithDedicatedSections]);
+          .insert([insertPayload]);
 
         if (insertErr) {
+          // Minimal fallback with only baseline standard columns
+          const minimalPayload = {
+            enumerator_id: local.enumerator_id || 'ENUM-001',
+            enumerator_name: local.enumerator_name || 'प्रगणक',
+            state_name: local.state_name || 'उत्तर प्रदेश (Uttar Pradesh)',
+            district_name: local.district_name || 'मथुरा (Mathura)',
+            tehsil_block: local.tehsil_block || 'मथुरा (Mathura)',
+            ward_village_name: local.ward_village_name || '',
+            village_code: encodedVillageCode,
+            enumeration_block_no: local.enumeration_block_no || '001',
+            updated_at: new Date().toISOString()
+          };
           const fallback = await supabase
             .from('enumerator_settings')
-            .insert([payload]);
+            .insert([minimalPayload]);
           insertErr = fallback.error;
         }
 

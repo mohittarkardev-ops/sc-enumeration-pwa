@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS enumerator_settings (
 
 -- Migration safety for existing deployments
 ALTER TABLE enumerator_settings ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE enumerator_settings ADD COLUMN IF NOT EXISTS last_building_no TEXT DEFAULT '001';
+ALTER TABLE enumerator_settings ADD COLUMN IF NOT EXISTS last_census_house_no TEXT DEFAULT '001';
+ALTER TABLE enumerator_settings ADD COLUMN IF NOT EXISTS last_household_no TEXT DEFAULT '001';
 
 -- 3. Households Table (परिवार प्रपत्र - मुख्य विवरण)
 CREATE TABLE IF NOT EXISTS households (

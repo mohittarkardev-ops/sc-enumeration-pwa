@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { db } from '../db/db';
 import { exportAllDataToExcel } from '../utils/exportExcel';
-import { syncPendingData } from '../db/supabase';
+import { syncPendingData, deleteHouseholdRecord } from '../db/supabase';
 import CensusProformaView from './CensusProformaView';
 
 export default function HouseholdListView({ activeSection, onNewEntry, onEditHousehold }) {
@@ -119,10 +119,17 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
   };
 
   const handleDeleteHousehold = async (localId) => {
-    if (confirm('क्या आप इस परिवार और इसके सभी सदस्यों का संपूर्ण रिकॉर्ड हटाना चाहते हैं?')) {
-      await db.households.delete(localId);
-      await db.members.where('household_local_id').equals(localId).delete();
-      loadData();
+    if (window.confirm('क्या आप इस परिवार और इसके सभी सदस्यों का संपूर्ण रिकॉर्ड हटाना चाहते हैं? यह रिकॉर्ड क्लाउड डेटाबेस से भी हटा दिया जाएगा।')) {
+      try {
+        const res = await deleteHouseholdRecord(localId);
+        if (res?.success) {
+          setPullMsg('परिवार और सदस्य सफलतापूर्वक हटा दिए गए।');
+          setTimeout(() => setPullMsg(''), 4000);
+        }
+        await loadData();
+      } catch (err) {
+        alert('परिवार हटाने में त्रुटि: ' + (err.message || err));
+      }
     }
   };
 
@@ -367,7 +374,7 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     {/* Status Pill */}
                     <div className="hidden xs:flex items-center">
                       {h.sync_status === 'synced' ? (
@@ -378,10 +385,37 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                       ) : (
                         <span className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-bold">
                           <Clock className="w-3.5 h-3.5 text-amber-600" />
-                          <span>लोकल (पेंडिंग)</span>
+                          <span>लोकल</span>
                         </span>
                       )}
                     </div>
+
+                    {/* Quick Edit */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditHousehold(h, hhMembers);
+                      }}
+                      className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0B3B60] border border-blue-200 text-xs font-bold flex items-center gap-1"
+                      title="संशोधन करें"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">संशोधन</span>
+                    </button>
+
+                    {/* Quick Delete */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteHousehold(h.local_id);
+                      }}
+                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 border border-slate-200 active:scale-95"
+                      title="परिवार हटाएं"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
 
                     {isExpanded ? (
                       <ChevronUp className="w-5 h-5 text-slate-400" />
@@ -401,7 +435,10 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
 
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleOpenProforma(h)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenProforma(h);
+                          }}
                           title="इस परिवार का आधिकारिक परिवार प्रपत्र (PDF / प्रिंट) देखें"
                           className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs sm:text-sm font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all min-h-[38px]"
                         >
@@ -410,7 +447,10 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                         </button>
 
                         <button
-                          onClick={() => onEditHousehold(h, hhMembers)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditHousehold(h, hhMembers);
+                          }}
                           className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#0B3B60] text-xs sm:text-sm font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all min-h-[38px]"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -418,7 +458,10 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
                         </button>
 
                         <button
-                          onClick={() => handleDeleteHousehold(h.local_id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteHousehold(h.local_id);
+                          }}
                           className="p-2 rounded-xl text-red-600 hover:bg-red-50 border border-slate-200 shadow-xs active:scale-95 transition-all min-h-[38px] min-w-[38px] flex items-center justify-center"
                           title="हटाएं"
                         >
