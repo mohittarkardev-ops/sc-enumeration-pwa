@@ -99,8 +99,7 @@ export default function HouseholdEntry({
     if (confirm('क्या आप इस सदस्य की प्रविष्टि हटाना चाहते हैं?')) {
       const updated = members.filter((_, i) => i !== index).map((m, idx) => ({
         ...m,
-        serial_no: idx + 1,
-        q2_relationship: idx === 0 ? 1 : m.q2_relationship
+        serial_no: idx + 1
       }));
       setMembers(updated);
     }
@@ -109,21 +108,10 @@ export default function HouseholdEntry({
   const handleSaveMemberFromModal = (memberData) => {
     if (editingMemberIndex !== null) {
       const updated = [...members];
-      updated[editingMemberIndex] = {
-        ...memberData,
-        serial_no: editingMemberIndex + 1
-      };
+      updated[editingMemberIndex] = memberData;
       setMembers(updated);
     } else {
-      const updated = [
-        ...members,
-        {
-          ...memberData,
-          local_id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-          serial_no: members.length + 1
-        }
-      ];
-      setMembers(updated);
+      setMembers([...members, memberData]);
     }
     setIsMemberModalOpen(false);
   };
@@ -187,6 +175,7 @@ export default function HouseholdEntry({
       await db.members.put(memberRecord);
     }
 
+    // Auto-increment household number for next entry
     const nextHhNum = pad3(parseInt(cleanHousehold, 10) + 1);
     setHouseholdNo(nextHhNum);
 
@@ -221,159 +210,165 @@ export default function HouseholdEntry({
   };
 
   return (
-    <div className="p-3.5 max-w-2xl mx-auto space-y-3.5 pb-24 font-['Hind']">
+    <div className="p-3 sm:p-4 max-w-2xl mx-auto space-y-3.5 pb-28 font-['Hind'] text-sm">
       
       {/* Editing Notification Banner */}
       {currentLocalId && (
-        <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 rounded-xl flex items-center justify-between text-xs font-bold shadow-sm">
-          <span>संशोधन मोड: परिवार क्रमांक #{householdNo} का प्रपत्र संशोधित हो रहा है।</span>
+        <div className="bg-amber-100 border border-amber-300 text-amber-900 p-3 sm:p-3.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-bold shadow-sm">
+          <span>संशोधन मोड: परिवार क्रमांक #{householdNo} का प्रपत्र संपादित किया जा रहा है।</span>
           <button
             type="button"
             onClick={onCancelEditing}
-            className="flex items-center gap-1 text-slate-800 hover:text-black font-extrabold underline ml-2"
+            className="flex items-center gap-1 text-slate-800 hover:text-black font-black underline ml-2"
           >
-            <XCircle className="w-3.5 h-3.5" />
+            <XCircle className="w-4 h-4" />
             <span>रद्द करें</span>
           </button>
         </div>
       )}
 
-      {/* Modern Administrative Location Banner with Soft Rounded Corners */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm flex items-center justify-between">
+      {/* Administrative Location Banner with Soft Rounded Corners */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-900 flex-wrap">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0B3B60]"></span>
-            <span>स्थान: {settings?.ward_village_name || 'ग्राम का नाम सेट करें'}</span>
-            <span className="text-slate-300">|</span>
-            <span className="text-[#0B3B60] font-extrabold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+            <span>स्थान: {settings?.ward_village_name || 'ग्राम सेट करें'}</span>
+            <span className="text-slate-300 hidden xs:inline">|</span>
+            <span className="text-[#0B3B60] font-black bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
               {activeSectionName}
             </span>
           </div>
-          <div className="text-[11px] text-slate-600 font-medium">
-            जिला: <strong className="text-slate-800">{settings?.district_name || 'मथुरा'}</strong> | ब्लॉक: <strong className="text-slate-800">{settings?.tehsil_block || 'मथुरा'}</strong> | गणना ब्लॉक: <strong className="text-slate-800">{settings?.enumeration_block_no || '001'}</strong>
+          <div className="text-xs text-slate-600 font-medium leading-relaxed">
+            जिला: <strong className="text-slate-800">{settings?.district_name || 'मथुरा'}</strong> | ब्लॉक: <strong className="text-slate-800">{settings?.tehsil_block || 'मथुरा'}</strong> | ब्लॉक सं.: <strong className="text-slate-800">{settings?.enumeration_block_no || '001'}</strong>
           </div>
         </div>
         <button
           onClick={onOpenSettings}
-          className="text-xs font-bold text-[#0B3B60] bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-300 transition-all active:scale-95 shadow-sm"
+          className="text-xs sm:text-sm font-bold text-[#0B3B60] bg-slate-50 hover:bg-slate-100 px-3.5 py-2 rounded-xl border border-slate-300 transition-all active:scale-95 shadow-sm shrink-0 min-h-[38px]"
         >
           बदलें
         </button>
       </div>
 
-      {/* Alerts */}
+      {/* Feedback & Error Alerts */}
       {feedbackMsg && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl flex items-center gap-2 text-xs font-bold shadow-sm animate-fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 sm:p-3.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm animate-fade-in">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{feedbackMsg}</span>
         </div>
       )}
 
       {formError && (
-        <div className="bg-red-50 border border-red-300 text-red-900 p-3 rounded-xl flex items-center gap-2 text-xs font-bold shadow-sm animate-fade-in">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+        <div className="bg-red-50 border border-red-300 text-red-900 p-3 sm:p-3.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
           <span>{formError}</span>
         </div>
       )}
 
-      {/* SECTION 1: भवन, मकान एवं परिवार क्रमांक - Modern Sleek Steppers */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm space-y-3.5">
+      {/* SECTION 1: भवन, मकान एवं परिवार क्रमांक - High Legibility Steppers */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h2 className="text-xs font-bold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
+          <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
             <Home className="w-4 h-4 text-[#0B3B60]" />
             <span>भाग 1: भवन, मकान एवं परिवार क्रमांक विवरण</span>
           </h2>
-          <span className="text-[10px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold font-mono">
+          <span className="text-xs bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 rounded-lg font-bold font-mono">
             {activeSectionName}
           </span>
         </div>
 
-        {/* 3 Modern Horizontal Steppers [-] [Input] [+] */}
-        <div className="grid grid-cols-3 gap-2.5">
+        {/* 3 Horizontal Touch Steppers [-] [Input] [+] */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           
           {/* 1. भवन संख्या */}
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-800 text-center">
+            <label className="block text-xs sm:text-sm font-bold text-slate-800 text-center">
               भवन संख्या <span className="text-red-600">*</span>
             </label>
-            <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60]">
+            <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60]">
               <button
                 type="button"
                 onClick={() => adjustNumber(buildingNo, setBuildingNo, -1)}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors"
+                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                title="घटाएं (-1)"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-4 h-4" />
               </button>
               <input
                 type="text"
                 value={buildingNo}
                 onChange={(e) => setBuildingNo(sanitizeAlphanumeric(e.target.value))}
-                className="w-full text-center font-bold text-xs text-slate-900 py-1.5 focus:outline-none"
+                className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => adjustNumber(buildingNo, setBuildingNo, 1)}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors"
+                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                title="बढ़ाएं (+1)"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* 2. जनगणना मकान संख्या */}
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-800 text-center">
+            <label className="block text-xs sm:text-sm font-bold text-slate-800 text-center">
               मकान संख्या <span className="text-red-600">*</span>
             </label>
-            <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60]">
+            <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/20 focus-within:border-[#0B3B60]">
               <button
                 type="button"
                 onClick={() => adjustNumber(censusHouseNo, setCensusHouseNo, -1)}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors"
+                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                title="घटाएं (-1)"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-4 h-4" />
               </button>
               <input
                 type="text"
                 value={censusHouseNo}
                 onChange={(e) => setCensusHouseNo(sanitizeAlphanumeric(e.target.value))}
-                className="w-full text-center font-bold text-xs text-slate-900 py-1.5 focus:outline-none"
+                className="w-full text-center font-black text-sm sm:text-base text-slate-900 py-2 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => adjustNumber(censusHouseNo, setCensusHouseNo, 1)}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors"
+                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-l border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                title="बढ़ाएं (+1)"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* 3. परिवार संख्या (पूर्ण संपादन योग्य) */}
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-[#0B3B60] text-center">
+            <label className="block text-xs sm:text-sm font-bold text-[#0B3B60] text-center">
               परिवार संख्या <span className="text-red-600">*</span>
             </label>
-            <div className="flex items-center border-2 border-[#0B3B60] rounded-lg overflow-hidden bg-blue-50/20 shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/30">
+            <div className="flex items-center border-2 border-[#0B3B60] rounded-xl overflow-hidden bg-blue-50/20 shadow-sm focus-within:ring-2 focus-within:ring-[#0B3B60]/30">
               <button
                 type="button"
                 onClick={() => adjustNumber(householdNo, setHouseholdNo, -1)}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors"
+                className="w-10 sm:w-11 h-11 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border-r border-slate-200 active:bg-slate-200 transition-colors flex items-center justify-center shrink-0"
+                title="घटाएं (-1)"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <Minus className="w-4 h-4" />
               </button>
               <input
                 type="text"
                 value={householdNo}
                 onChange={(e) => setHouseholdNo(sanitizeAlphanumeric(e.target.value))}
-                className="w-full text-center font-extrabold text-xs text-[#0B3B60] py-1.5 focus:outline-none"
+                className="w-full text-center font-black text-sm sm:text-base text-[#0B3B60] py-2 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => adjustNumber(householdNo, setHouseholdNo, 1)}
-                className="px-2.5 py-1.5 bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold border-l border-blue-900 active:bg-[#072F5F] transition-colors"
+                className="w-10 sm:w-11 h-11 bg-[#0B3B60] hover:bg-[#134D7E] text-white font-bold border-l border-blue-900 active:bg-[#072F5F] transition-colors flex items-center justify-center shrink-0"
+                title="बढ़ाएं (+1)"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -381,7 +376,7 @@ export default function HouseholdEntry({
 
         {/* परिवार का प्रकार */}
         <div className="pt-1">
-          <label className="block text-[11px] font-bold text-slate-800 mb-1.5">
+          <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1.5">
             परिवार का प्रकार <span className="text-red-600">*</span>
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -390,7 +385,7 @@ export default function HouseholdEntry({
                 key={t.code}
                 type="button"
                 onClick={() => setHouseholdType(t.code)}
-                className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${
+                className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold border transition-all min-h-[42px] ${
                   householdType === t.code
                     ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
                     : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -403,37 +398,37 @@ export default function HouseholdEntry({
         </div>
       </div>
 
-      {/* SECTION 2: परिवार के सदस्य - MOBILE MEMBER PROFILE CARDS (Un-squished) */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm space-y-3.5">
+      {/* SECTION 2: परिवार के सदस्य - MOBILE MEMBER PROFILE CARDS */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-1.5">
             <Users className="w-4 h-4 text-[#0B3B60]" />
-            <h2 className="text-xs font-bold text-[#0B3B60] uppercase tracking-wide">
-              भाग 2: परिवार के सदस्यों की विवरणी ({members.length})
+            <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+              भाग 2: सदस्यों की विवरणी ({members.length})
             </h2>
           </div>
 
           <button
             type="button"
             onClick={handleOpenAddMember}
-            className="flex items-center gap-1 px-3 py-1.5 bg-[#0B3B60] hover:bg-[#134D7E] text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all"
+            className="flex items-center gap-1 px-3.5 py-2 bg-[#0B3B60] hover:bg-[#134D7E] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm active:scale-95 transition-all min-h-[38px]"
           >
-            <UserPlus className="w-3.5 h-3.5" />
+            <UserPlus className="w-4 h-4" />
             <span>{members.length === 0 ? '+ मुखिया जोड़ें (क्र. 1)' : '+ सदस्य जोड़ें'}</span>
           </button>
         </div>
 
         {members.length === 0 ? (
-          <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 space-y-2">
-            <Users className="w-8 h-8 text-slate-400 mx-auto" />
-            <p className="text-xs font-bold text-slate-800">अभी कोई सदस्य प्रविष्ट नहीं किया गया है</p>
-            <p className="text-[11px] text-slate-500">
+          <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/60 space-y-2">
+            <Users className="w-10 h-10 text-slate-400 mx-auto" />
+            <p className="text-sm font-bold text-slate-800">अभी कोई सदस्य प्रविष्ट नहीं किया गया है</p>
+            <p className="text-xs text-slate-500">
               कृपया सबसे पहले परिवार के मुखिया का विवरण (क्र.सं. 1) दर्ज करें।
             </p>
             <button
               type="button"
               onClick={handleOpenAddMember}
-              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B3B60] text-white rounded-xl text-xs font-bold shadow-sm"
+              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#0B3B60] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm active:scale-95"
             >
               <UserPlus className="w-4 h-4" />
               <span>+ मुखिया का विवरण दर्ज करें</span>
@@ -445,41 +440,41 @@ export default function HouseholdEntry({
             {members.map((m, idx) => (
               <div 
                 key={m.local_id || idx}
-                className="p-3 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50/60 shadow-sm transition-all flex items-center justify-between gap-3"
+                className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 shadow-sm transition-all flex items-center justify-between gap-3"
               >
                 {/* Left: Serial Badge + Details */}
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-300 font-extrabold text-slate-800 flex items-center justify-center text-xs shrink-0 shadow-inner">
+                  <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-300 font-black text-slate-800 flex items-center justify-center text-sm shrink-0 shadow-inner">
                     {idx + 1}
                   </div>
 
                   <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs text-slate-900">{m.q1_name}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-sm sm:text-base text-slate-900">{m.q1_name}</span>
                       {idx === 0 && (
-                        <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded border border-amber-300">
+                        <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 rounded-md border border-amber-300">
                           मुखिया
                         </span>
                       )}
                     </div>
 
-                    <div className="text-[11px] text-slate-600 font-medium flex items-center gap-2">
+                    <div className="text-xs sm:text-sm text-slate-600 font-medium flex items-center gap-2">
                       <span>{getRelLabel(m.q2_relationship)}</span>
                       <span>•</span>
                       <span>{getGenderLabel(m.q3_gender)} ({m.q4b_age} वर्ष)</span>
                     </div>
 
                     {/* Contact & ID Pills */}
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+                    <div className="flex items-center gap-2.5 text-xs text-slate-500 pt-0.5 flex-wrap">
                       {m.q36_mobile_number ? (
-                        <span className="flex items-center gap-0.5 text-slate-700 font-mono">
-                          <Phone className="w-2.5 h-2.5 text-slate-400" />
+                        <span className="flex items-center gap-1 text-slate-700 font-mono font-medium">
+                          <Phone className="w-3 h-3 text-slate-400" />
                           {m.q36_mobile_number}
                         </span>
                       ) : null}
                       {m.q37_aadhaar_number && m.q37_aadhaar_number !== 'नहीं' ? (
-                        <span className="flex items-center gap-0.5 text-emerald-700 font-mono font-semibold">
-                          <CreditCard className="w-2.5 h-2.5 text-emerald-600" />
+                        <span className="flex items-center gap-1 text-emerald-700 font-mono font-semibold">
+                          <CreditCard className="w-3 h-3 text-emerald-600" />
                           आधार उपलब्ध
                         </span>
                       ) : (
@@ -490,11 +485,11 @@ export default function HouseholdEntry({
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => handleOpenEditMember(idx)}
-                    className="p-2 rounded-lg text-[#0B3B60] hover:bg-slate-100 border border-slate-200 active:scale-95 transition-all shadow-sm"
+                    className="p-2.5 rounded-xl text-[#0B3B60] hover:bg-slate-100 border border-slate-200 active:scale-95 transition-all shadow-sm min-h-[42px] min-w-[42px] flex items-center justify-center"
                     title="संशोधन करें"
                   >
                     <Edit3 className="w-4 h-4" />
@@ -502,7 +497,7 @@ export default function HouseholdEntry({
                   <button
                     type="button"
                     onClick={() => handleDeleteMember(idx)}
-                    className="p-2 rounded-lg text-red-600 hover:bg-red-50 border border-slate-200 active:scale-95 transition-all shadow-sm"
+                    className="p-2.5 rounded-xl text-red-600 hover:bg-red-50 border border-slate-200 active:scale-95 transition-all shadow-sm min-h-[42px] min-w-[42px] flex items-center justify-center"
                     title="हटाएं"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -515,14 +510,14 @@ export default function HouseholdEntry({
       </div>
 
       {/* प्रपत्र स्थिति एवं रिमार्क्स */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm space-y-2.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-800">सर्वेक्षण प्रपत्र की स्थिति</label>
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <label className="text-xs sm:text-sm font-bold text-slate-800">सर्वेक्षण प्रपत्र की स्थिति</label>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setStatus('completed')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-all min-h-[38px] ${
                 status === 'completed'
                   ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
                   : 'bg-white text-slate-700 border-slate-300'
@@ -533,7 +528,7 @@ export default function HouseholdEntry({
             <button
               type="button"
               onClick={() => setStatus('draft')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-all min-h-[38px] ${
                 status === 'draft'
                   ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm'
                   : 'bg-white text-slate-700 border-slate-300'
@@ -549,32 +544,32 @@ export default function HouseholdEntry({
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
           placeholder="रिमार्क्स अथवा विशेष विवरण (वैकल्पिक)"
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white font-medium focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
         />
 
         {/* Local DB Security Badge */}
-        <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
-          <span className="flex items-center gap-1 text-emerald-800 font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            100% ऑफ़लाइन सुरक्षित (फोन की मेमोरी में संगृहीत)
+        <div className="pt-1 flex items-center justify-between text-xs text-slate-500">
+          <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            100% ऑफ़लाइन सुरक्षित (फोन की लोकल मेमोरी में संगृहीत)
           </span>
-          <span>{members.length} व्यक्ति दर्ज</span>
+          <span className="font-semibold">{members.length} सदस्य प्रविष्ट</span>
         </div>
       </div>
 
-      {/* Sticky Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 z-20 shadow-lg">
+      {/* Sticky Bottom Bar with Comfortable Tap Size */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:p-3.5 z-20 shadow-lg">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-          <div className="text-xs font-bold text-slate-800">
+          <div className="text-xs sm:text-sm font-black text-slate-800 shrink-0">
             परिवार #{householdNo} • {members.length} सदस्य
           </div>
 
           <button
             type="button"
             onClick={handleSaveHousehold}
-            className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
+            className="flex-1 py-3 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-black text-sm sm:text-base rounded-xl shadow-md flex items-center justify-center gap-2 transition-all min-h-[48px]"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-5 h-5" />
             <span>परिवार प्रपत्र सुरक्षित करें</span>
           </button>
         </div>

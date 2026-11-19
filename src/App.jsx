@@ -62,6 +62,11 @@ export default function App() {
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         villageName={settings?.ward_village_name}
+        sections={settings?.sections || [
+          { id: '1', name: 'सेक्शन 1' },
+          { id: '2', name: 'सेक्शन 2' },
+          { id: '3', name: 'सेक्शन 3' }
+        ]}
       />
 
       <main className="flex-1 overflow-x-hidden">

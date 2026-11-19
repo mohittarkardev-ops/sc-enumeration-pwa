@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   * {
     font-family: 'Hind', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
@@ -11,11 +17,18 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     font-family: 'Hind', sans-serif;
+    overscroll-behavior-y: none;
+    background-color: #f1f5f9;
   }
 
-  /* Improve hindi font rendering */
+  /* Improve Hindi font rendering, spacing and legibility */
   input, select, textarea, button {
     font-family: 'Hind', sans-serif;
+  }
+
+  /* Optimize momentum scrolling on mobile browsers */
+  .momentum-scroll {
+    -webkit-overflow-scrolling: touch;
   }
 }
 

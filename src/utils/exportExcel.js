@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { db } from '../db/db';
 import {
   RELATIONSHIP_CODES,
@@ -30,6 +29,9 @@ export const exportAllDataToExcel = async () => {
     return;
   }
 
+  // Dynamically import xlsx on demand to keep initial bundle ultra fast
+  const XLSX = await import('xlsx');
+
   // 1. Households Sheet Data
   const hhRows = households.map((h, idx) => ({
     'क्र.सं.': idx + 1,
@@ -51,54 +53,64 @@ export const exportAllDataToExcel = async () => {
 
   // 2. Members Sheet Data (All Q.1 to Q.40)
   const memberRows = members.map((m, idx) => {
-    // Find parent household
     const parentHh = households.find(h => h.local_id === m.household_local_id);
 
     return {
       'क्र.सं.': idx + 1,
       'परिवार सं.': parentHh ? parentHh.household_no : '',
       'मकान सं.': parentHh ? parentHh.census_house_no : '',
-      'सेक्शन': parentHh ? `सेक्शन ${parentHh.village_section}` : '',
-      'सदस्य क्र.सं.': m.serial_no,
-      'Q.1 व्यक्ति का नाम': m.q1_name,
-      'Q.2 मुखिया से सम्बन्ध': getLabel(RELATIONSHIP_CODES, m.q2_relationship),
-      'Q.3 लिंग': getLabel(GENDER_CODES, m.q3_gender),
+      'भवन सं.': parentHh ? parentHh.building_no : '',
+      'ग्राम सेक्शन': parentHh ? `सेक्शन ${parentHh.village_section}` : '',
+      'Q.1 सदस्य का नाम': m.q1_name,
+      'Q.2 सम्बन्ध': getLabel(RELATIONSHIP_CODES, m.q2_relationship),
+      'Q.3 लिंग': m.q3_gender === 1 ? 'पुरुष' : m.q3_gender === 2 ? 'महिला' : 'अन्य',
       'Q.4(क) जन्म तिथि': m.q4a_dob || '',
-      'Q.4(ख) आयु (वर्ष)': m.q4b_age,
+      'Q.4(ख) आयु': m.q4b_age,
       'Q.5 वैवाहिक स्थिति': getLabel(MARITAL_STATUS_CODES, m.q5_marital_status),
-      'Q.6 विवाह के समय आयु': m.q6_age_at_marriage || '',
-      'Q.7 पति/पत्नी क्र.सं.': m.q7_spouse_serial_no || '',
+      'Q.6 विवाह की आयु': m.q6_age_at_marriage || '',
+      'Q.7 जीवनसाथी क्र.सं.': m.q7_spouse_serial_no || '',
       'Q.8 राष्ट्रीयता': m.q8_nationality || 'भारत',
-      'Q.9 धर्म': getLabel(RELATIONSHIP_CODES, m.q9_religion) || (m.q9_religion === 7 ? `अन्य (${m.q9_religion_other})` : getLabel(RELIGION_CODES, m.q9_religion)),
-      'Q.10(क) अ.जा./अ.ज.जा.': m.q10a_sc_st === 1 ? 'अनुसूचित जाति (SC)' : m.q10a_sc_st === 2 ? 'अनुसूचित जनजाति (ST)' : 'अन्य/सामान्य',
-      'Q.10(ख) SC/ST कोड': m.q10b_caste_code || '',
+      'Q.9 धर्म': getLabel(RELIGION_CODES, m.q9_religion),
+      'Q.9 अन्य धर्म': m.q9_religion_other || '',
+      'Q.10(क) जाति संवर्ग': m.q10a_sc_st === 1 ? 'SC' : m.q10a_sc_st === 2 ? 'ST' : 'सामान्य / अन्य',
+      'Q.10(ख) जाति कोड': m.q10b_caste_code || '',
       'Q.10(ग) जाति का नाम': m.q10c_caste_name || '',
-      'Q.11 पिता का नाम / क्र.सं.': m.q11_father_in_hh ? `परिवार में क्र. ${m.q11_father_serial_no}` : (m.q11_father_name || ''),
-      'Q.12 माता का नाम / क्र.सं.': m.q12_mother_in_hh ? `परिवार में क्र. ${m.q12_mother_serial_no}` : (m.q12_mother_name || ''),
-      'Q.13 दिव्यांगता': m.q13a_disabled === 1 ? 'हाँ' : 'नहीं',
-      'Q.14 मातृभाषा': m.q14a_mother_tongue || 'हिन्दी',
-      'Q.15(क) साक्षरता': m.q15a_literacy === 1 ? 'साक्षर' : m.q15a_literacy === 2 ? 'निरक्षर' : '',
-      'Q.15(ख) डिजिटल साक्षर': m.q15b_digital_literate === 1 ? 'हाँ' : m.q15b_digital_literate === 2 ? 'नहीं' : '',
+      'Q.11 पिता जीवित व क्र.सं.': m.q11_father_in_hh ? `हाँ (#${m.q11_father_serial_no})` : (m.q11_father_name || 'नहीं'),
+      'Q.12 माता जीवित व क्र.सं.': m.q12_mother_in_hh ? `हाँ (#${m.q12_mother_serial_no})` : (m.q12_mother_name || 'नहीं'),
+      'Q.13(क) दिव्यांगता': m.q13a_disabled === 1 ? 'हाँ' : 'नहीं',
+      'Q.13(ख) दिव्यांगता प्रकार': (m.q13b_disability_types || []).join(', '),
+      'Q.14(क) मातृभाषा': m.q14a_mother_tongue || 'हिन्दी',
+      'Q.14(ख) अन्य भाषाएं': m.q14b_other_languages || '',
+      'Q.15(क) साक्षरता': m.q15a_literacy === 1 ? 'साक्षर' : 'निरक्षर',
+      'Q.15(ख) डिजिटल साक्षर': m.q15b_digital_literate === 1 ? 'हाँ' : 'नहीं',
       'Q.16 शिक्षा स्थिति': getLabel(EDUCATION_STATUS_CODES, m.q16_education_status),
-      'Q.17(क) उच्चतम शिक्षा स्तर': getLabel(EDUCATION_LEVEL_CODES, m.q17a_highest_education),
-      'Q.18 पिछला कार्य': getLabel(WORK_LAST_YEAR_CODES, m.q18_work_last_year),
+      'Q.17(क) उच्चतम शिक्षा': getLabel(EDUCATION_LEVEL_CODES, m.q17a_highest_education),
+      'Q.17(ख) विषय': m.q17b_subject || '',
+      'Q.18 गत वर्ष कार्य': getLabel(WORK_LAST_YEAR_CODES, m.q18_work_last_year),
       'Q.19 आर्थिक गतिविधि': getLabel(ECONOMIC_ACTIVITY_CODES, m.q19_economic_activity),
       'Q.20 व्यवसाय': m.q20_occupation || '',
-      'Q.21 उद्योग/व्यापार': m.q21_industry || '',
-      'Q.22 कर्मी का वर्ग': getLabel(WORKER_CLASS_CODES, m.q22_worker_class),
+      'Q.21 उद्योग/प्रतिष्ठान': m.q21_industry || '',
+      'Q.22 कर्मी संवर्ग': getLabel(WORKER_CLASS_CODES, m.q22_worker_class),
       'Q.23 गैर-आर्थिक गतिविधि': getLabel(NON_ECONOMIC_ACTIVITY_CODES, m.q23_non_economic_activity),
-      'Q.25 यात्रा का साधन': getLabel(COMMUTE_MODE_CODES, m.q25c_travel_mode),
-      'Q.28 प्रवास का कारण': getLabel(MIGRATION_REASON_CODES, m.q28_migration_reason),
-      'Q.30 स्थायी पता': m.q30_permanent_address_same ? 'मुखिया के समान' : (m.q30_permanent_address || ''),
-      'Q.31 जीवित संतानें (स्त्री)': m.q31_children_ever_born_female || 0,
-      'Q.31 जीवित संतानें (पुरुष)': m.q31_children_ever_born_male || 0,
-      'Q.34 कोविड टीका': m.q34a_covid_vaccinated === 1 ? 'हाँ' : 'नहीं',
-      'Q.35 बैंक खाते संख्या': m.q35_bank_accounts_count || 1,
+      'Q.24 काम की तलाश': m.q24_seeking_work === 1 ? 'हाँ' : 'नहीं',
+      'Q.25(क) कार्यस्थल दूरी (किमी)': m.q25a_travel_distance_km || '',
+      'Q.25(ख) यात्रा समय (मिनट)': m.q25b_travel_time_min || '',
+      'Q.25(ग) यात्रा साधन': getLabel(COMMUTE_MODE_CODES, m.q25c_travel_mode),
+      'Q.26 जन्म स्थान': m.q26_birth_place_type === 'here' ? 'गणना स्थल पर' : (m.q26_birth_state || 'अन्य'),
+      'Q.27 पूर्व निवास': m.q27_last_residence_type === 'here' ? 'गणना स्थल' : (m.q27_last_residence_state || 'अन्य'),
+      'Q.28 प्रवास कारण': getLabel(MIGRATION_REASON_CODES, m.q28_migration_reason),
+      'Q.29 निवास अवधि (वर्ष)': m.q29_residence_duration_years || '',
+      'Q.30 स्थायी पता समान': m.q30_permanent_address_same ? 'हाँ' : (m.q30_permanent_address || 'अन्य'),
+      'Q.31 कुल जीवित जन्मे बच्चे (स्त्री/पुरुष)': `${m.q31_children_ever_born_female || 0} स्त्री / ${m.q31_children_ever_born_male || 0} पुरुष`,
+      'Q.32 वर्तमान जीवित बच्चे': `${m.q32_children_surviving_female || 0} स्त्री / ${m.q32_children_surviving_male || 0} पुरुष`,
+      'Q.33 गत वर्ष जन्मे बच्चे': `${m.q33_children_born_last_year_female || 0} स्त्री / ${m.q33_children_born_last_year_male || 0} पुरुष`,
+      'Q.34(क) कोविड टीका': m.q34a_covid_vaccinated === 1 ? 'हाँ' : 'नहीं',
+      'Q.35 बैंक खाता संख्या': m.q35_bank_accounts_count || 1,
       'Q.36 मोबाइल नंबर': m.q36_mobile_number || '',
       'Q.37 आधार नंबर': m.q37_aadhaar_number || '',
-      'Q.38 वोटर आईडी (EPIC)': m.q38_voter_id_epic || '',
-      'Q.39 पासपोर्ट': m.q39_passport_number || '',
-      'Q.40 ड्राइविंग लाइसेंस': m.q40_driving_license === 1 ? 'हाँ' : m.q40_driving_license === 2 ? 'नहीं' : ''
+      'Q.38 मतदाता परिचय पत्र (EPIC)': m.q38_voter_id_epic || '',
+      'Q.39 पासपोर्ट नंबर': m.q39_passport_number || '',
+      'Q.40 ड्राइविंग लाइसेंस': m.q40_driving_license === 1 ? 'हाँ' : 'नहीं'
     };
   });
 

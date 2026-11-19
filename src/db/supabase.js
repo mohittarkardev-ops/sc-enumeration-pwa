@@ -29,14 +29,128 @@ export const setSupabaseConfig = (rawUrl, anonKey) => {
   localStorage.setItem(SUPABASE_ANON_KEY, anonKey.trim());
 };
 
-export const getSupabaseClient = () => {
-  const { url, anonKey } = getSupabaseConfig();
+export const getSupabaseClient = (customUrl, customKey) => {
+  const url = customUrl ? normalizeSupabaseUrl(customUrl) : getSupabaseConfig().url;
+  const anonKey = customKey !== undefined ? customKey.trim() : getSupabaseConfig().anonKey;
   if (!url || !anonKey) return null;
   try {
-    return createClient(url, anonKey);
+    return createClient(url, anonKey, {
+      auth: { persistSession: false }
+    });
   } catch (err) {
-    console.error('डेटाबेस कनेक्शन त्रुटि:', err);
+    console.error('डेटाबेस इनिशियलाइज़ेशन त्रुटि:', err);
     return null;
+  }
+};
+
+/**
+ * REAL LIVE DATABASE CONNECTION TEST
+ * Sends an actual HTTP request to Supabase to verify connectivity, schema tables, and API keys.
+ * Returns exact status, latency in milliseconds, and human-friendly Hindi message.
+ */
+export const checkDatabaseConnection = async (customUrl, customKey) => {
+  if (!navigator.onLine) {
+    return {
+      connected: false,
+      code: 'OFFLINE',
+      statusText: 'ऑफ़लाइन (इंटरनेट अनुपलब्ध)',
+      message: 'डिवाइस इंटरनेट से कनेक्टेड नहीं है। सर्वेक्षण डेटा डिवाइस पर सुरक्षित रहेगा।',
+      latency: 0
+    };
+  }
+
+  const { url, anonKey } = customUrl !== undefined 
+    ? { url: normalizeSupabaseUrl(customUrl), anonKey: (customKey || '').trim() }
+    : getSupabaseConfig();
+
+  if (!url || !anonKey) {
+    return {
+      connected: false,
+      code: 'UNCONFIGURED',
+      statusText: 'क्रेडेंशियल्स शेष',
+      message: 'Supabase URL या Anon Key दर्ज नहीं है। सेटिंग्स में जाकर प्रोजेक्ट URL व Anon Key भरें।',
+      latency: 0
+    };
+  }
+
+  const client = getSupabaseClient(url, anonKey);
+  if (!client) {
+    return {
+      connected: false,
+      code: 'INVALID_URL',
+      statusText: 'अमान्य URL',
+      message: 'प्रोजेक्ट URL का प्रारूप अमान्य है। (उदा: https://xyz.supabase.co)',
+      latency: 0
+    };
+  }
+
+  try {
+    const startTime = performance.now();
+    
+    // Create an abort timeout of 8 seconds
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('कनेक्शन टाइमआउट (8s) - सर्वर से उत्तर नहीं मिला')), 8000)
+    );
+
+    // Ping the actual schema table
+    const queryPromise = client
+      .from('households')
+      .select('id', { count: 'exact', head: true })
+      .limit(0);
+
+    const { error, status } = await Promise.race([queryPromise, timeoutPromise]);
+    const latency = Math.round(performance.now() - startTime);
+
+    if (error) {
+      // 1. Table does not exist (Schema not run yet)
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('relation') || error.message?.toLowerCase().includes('does not exist')) {
+        return {
+          connected: false,
+          code: 'SCHEMA_MISSING',
+          statusText: 'स्कीमा अनुपस्थित',
+          message: `डेटाबेस कनेक्टेड है (${latency}ms) पर 'households' टेबल नहीं मिली! कृपया Supabase SQL Editor में supabase_schema.sql चलाएँ।`,
+          latency
+        };
+      }
+
+      // 2. Authentication / API key invalid
+      if (status === 401 || status === 403 || error.message?.toLowerCase().includes('jwt') || error.message?.toLowerCase().includes('apikey')) {
+        return {
+          connected: false,
+          code: 'AUTH_ERROR',
+          statusText: 'गलत API Key',
+          message: `सत्यापन विफल (HTTP ${status})! कृपया Project Settings > API से सही anon/public key कॉपी करें।`,
+          latency
+        };
+      }
+
+      // 3. General Supabase error
+      return {
+        connected: false,
+        code: 'DB_ERROR',
+        statusText: `त्रुटि ${status || ''}`,
+        message: `डेटाबेस त्रुटि: ${error.message || 'अज्ञात त्रुटि'}`,
+        latency
+      };
+    }
+
+    // Success: Real live connection established!
+    return {
+      connected: true,
+      code: 'CONNECTED',
+      statusText: 'लाइव कनेक्टेड',
+      message: `डेटाबेस से सीधा संपर्क स्थापित (${latency}ms)। Households व Members टेबल्स सक्रिय हैं।`,
+      latency
+    };
+
+  } catch (err) {
+    return {
+      connected: false,
+      code: 'NETWORK_TIMEOUT',
+      statusText: 'नेटवर्क टाइमआउट',
+      message: err.message || 'डेटाबेस सर्वर तक अनुरोध नहीं पहुँच सका। कृपया नेटवर्क और URL जांचें।',
+      latency: 0
+    };
   }
 };
 
