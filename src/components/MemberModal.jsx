@@ -360,7 +360,28 @@ export default function MemberModal({
   const isWife = Number(formData.q2_relationship) === 2 && isFemale;
   const isMarriedFemale = isFemale && isMarriedOrEver;
   const ageAtMarriage = Number(formData.q6_age_at_marriage) || 0;
-  const durationSinceMarriage = (age > 0 && ageAtMarriage > 0 && age >= ageAtMarriage) ? (age - ageAtMarriage) : '';
+
+  // Dynamic Residence Duration Calculator from Marriage (शादी से अब तक के पूर्ण वर्ष)
+  const getCalculatedResidenceDuration = (data = formData, mYear = marriageYear) => {
+    const curYear = new Date().getFullYear();
+    // 1. यदि विवाह वर्ष उपलब्ध है
+    if (mYear && String(mYear).length === 4) {
+      const parsedYear = parseInt(mYear, 10);
+      if (!isNaN(parsedYear) && parsedYear <= curYear && parsedYear >= 1920) {
+        return Math.max(0, curYear - parsedYear);
+      }
+    }
+    // 2. यदि वर्तमान आयु एवं विवाह के समय आयु उपलब्ध है
+    const currentAge = Number(data.q4b_age);
+    const mAge = Number(data.q6_age_at_marriage);
+    if (!isNaN(currentAge) && !isNaN(mAge) && currentAge >= mAge && currentAge > 0 && mAge > 0) {
+      return Math.max(0, currentAge - mAge);
+    }
+    return null;
+  };
+
+  const calcDuration = getCalculatedResidenceDuration(formData, marriageYear);
+  const durationSinceMarriage = calcDuration !== null ? calcDuration : '';
 
   // Smart Sync & Copy Birthplace to Last Residence Helper
   const handleCopyBirthplaceToLastResidence = () => {
@@ -369,10 +390,7 @@ export default function MemberModal({
     const dist = formData.q26_birth_district || 'मथुरा (Mathura)';
     const details = formatBirthplace(st, dist, vName);
     
-    let mDuration = formData.q29_residence_duration_years;
-    if (durationSinceMarriage !== '' && !mDuration) {
-      mDuration = String(durationSinceMarriage);
-    }
+    const computedDuration = calcDuration !== null ? String(calcDuration) : formData.q29_residence_duration_years;
 
     setFormData((prev) => ({
       ...prev,
@@ -383,7 +401,7 @@ export default function MemberModal({
       q27_last_residence_details: details,
       q27b_rural_urban: prev.q27b_rural_urban || 1,
       q28_migration_reason: prev.q28_migration_reason || ((isBahu || isMarriedFemale) ? 4 : 6),
-      q29_residence_duration_years: mDuration || prev.q29_residence_duration_years || ''
+      q29_residence_duration_years: computedDuration || prev.q29_residence_duration_years || ''
     }));
 
     if (vName) saveRecentVillage(vName);
@@ -409,8 +427,9 @@ export default function MemberModal({
         next.q27b_rural_urban = prev.q27b_rural_urban || 1;
         if (isBahu || isMarriedFemale) {
           if (!next.q28_migration_reason) next.q28_migration_reason = 4; // विवाह
-          if (durationSinceMarriage !== '' && !next.q29_residence_duration_years) {
-            next.q29_residence_duration_years = String(durationSinceMarriage);
+          const computedDur = getCalculatedResidenceDuration(next, marriageYear);
+          if (computedDur !== null) {
+            next.q29_residence_duration_years = String(computedDur);
           }
         }
       }
@@ -445,10 +464,19 @@ export default function MemberModal({
       if (bYear && !isNaN(mYear)) {
         const calculatedAgeAtMarriage = mYear - bYear;
         if (calculatedAgeAtMarriage >= 0) {
-          setFormData((prev) => ({
-            ...prev,
-            q6_age_at_marriage: String(calculatedAgeAtMarriage)
-          }));
+          const curYear = new Date().getFullYear();
+          const autoDuration = Math.max(0, curYear - mYear);
+          setFormData((prev) => {
+            const next = {
+              ...prev,
+              q6_age_at_marriage: String(calculatedAgeAtMarriage)
+            };
+            if (Number(prev.q28_migration_reason) === 4 || isBahu || (isMarriedFemale && prev.q27_last_residence_type !== 'here')) {
+              next.q28_migration_reason = 4;
+              next.q29_residence_duration_years = String(autoDuration);
+            }
+            return next;
+          });
           if (errors.q6_age_at_marriage) {
             setErrors((prev) => ({ ...prev, q6_age_at_marriage: undefined }));
           }
@@ -459,16 +487,24 @@ export default function MemberModal({
 
   const handleAgeAtMarriageChange = (val) => {
     const clean = sanitizeNumeric(val).slice(0, 3);
-    setFormData((prev) => ({ ...prev, q6_age_at_marriage: clean }));
+    const mAgeNum = clean !== '' ? parseInt(clean, 10) : NaN;
+    setFormData((prev) => {
+      const next = { ...prev, q6_age_at_marriage: clean };
+      const curAge = Number(prev.q4b_age);
+      if (!isNaN(curAge) && !isNaN(mAgeNum) && curAge >= mAgeNum) {
+        if (Number(prev.q28_migration_reason) === 4 || isBahu || (isMarriedFemale && prev.q27_last_residence_type !== 'here')) {
+          next.q28_migration_reason = 4;
+          next.q29_residence_duration_years = String(curAge - mAgeNum);
+        }
+      }
+      return next;
+    });
     if (errors.q6_age_at_marriage) {
       setErrors((prev) => ({ ...prev, q6_age_at_marriage: undefined }));
     }
     const bYear = birthYear;
-    if (clean !== '' && bYear) {
-      const ageNum = parseInt(clean, 10);
-      if (!isNaN(ageNum) && ageNum >= 0) {
-        setMarriageYear(String(bYear + ageNum));
-      }
+    if (clean !== '' && bYear && !isNaN(mAgeNum) && mAgeNum >= 0) {
+      setMarriageYear(String(bYear + mAgeNum));
     } else if (clean === '') {
       setMarriageYear('');
     }
@@ -512,6 +548,11 @@ export default function MemberModal({
           if (marriedSon.marriage_year) {
             setMarriageYear(String(marriedSon.marriage_year));
             updated.marriage_year = marriedSon.marriage_year;
+            const curY = new Date().getFullYear();
+            const pY = parseInt(marriedSon.marriage_year, 10);
+            if (!isNaN(pY) && pY <= curY) {
+              updated.q29_residence_duration_years = String(Math.max(0, curY - pY));
+            }
           }
         }
       }
@@ -572,6 +613,15 @@ export default function MemberModal({
         const calcAge = parseInt(marriageYear, 10) - bYear;
         if (calcAge >= 0) {
           next.q6_age_at_marriage = String(calcAge);
+          if (Number(next.q28_migration_reason) === 4 || isBahu || (isMarriedFemale && next.q27_last_residence_type !== 'here')) {
+            next.q28_migration_reason = 4;
+            next.q29_residence_duration_years = String(Math.max(0, num - calcAge));
+          }
+        }
+      } else if (typeof num === 'number' && Number(next.q6_age_at_marriage) > 0 && num >= Number(next.q6_age_at_marriage)) {
+        if (Number(next.q28_migration_reason) === 4 || isBahu || (isMarriedFemale && next.q27_last_residence_type !== 'here')) {
+          next.q28_migration_reason = 4;
+          next.q29_residence_duration_years = String(num - Number(next.q6_age_at_marriage));
         }
       }
       return next;
@@ -792,6 +842,13 @@ export default function MemberModal({
     cleaned.marriage_year = marriageYear || cleaned.marriage_year;
     if (isEnglishText(cleaned.q1_name)) {
       cleaned.q1_name = transliterateEnglishToHindi(cleaned.q1_name);
+    }
+
+    if (cleaned.q27_last_residence_type !== 'here' && (isBahu || isMarriedFemale)) {
+      if (!cleaned.q28_migration_reason) cleaned.q28_migration_reason = 4;
+      if ((cleaned.q29_residence_duration_years === '' || cleaned.q29_residence_duration_years === undefined) && calcDuration !== null) {
+        cleaned.q29_residence_duration_years = String(calcDuration);
+      }
     }
 
     if (cleaned.q26_birth_village) saveRecentVillage(cleaned.q26_birth_village);
@@ -3212,7 +3269,21 @@ export default function MemberModal({
                     <button
                       key={item.code}
                       type="button"
-                      onClick={() => setFormData({ ...formData, q27_last_residence_type: item.code })}
+                      onClick={() => {
+                        setFormData((prev) => {
+                          const next = { ...prev, q27_last_residence_type: item.code };
+                          if (item.code !== 'here') {
+                            if (!next.q28_migration_reason && (isBahu || isMarriedFemale)) {
+                              next.q28_migration_reason = 4; // विवाह
+                            }
+                            const calcDur = getCalculatedResidenceDuration(next, marriageYear);
+                            if (calcDur !== null && !next.q29_residence_duration_years) {
+                              next.q29_residence_duration_years = String(calcDur);
+                            }
+                          }
+                          return next;
+                        });
+                      }}
                       className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[42px] border ${
                         formData.q27_last_residence_type === item.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
@@ -3371,14 +3442,34 @@ export default function MemberModal({
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
-                        प्र. 28 स्थान परिवर्तन का कारण
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          प्र. 28 स्थान परिवर्तन का कारण
+                        </label>
+                        {(isBahu || isMarriedFemale) && (
+                          <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            विवाह (कोड 4) अनुशंसित
+                          </span>
+                        )}
+                      </div>
                       <div className="relative">
                         <select
-                          value={formData.q28_migration_reason}
-                          onChange={(e) => setFormData({ ...formData, q28_migration_reason: Number(e.target.value) })}
-                          className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base"
+                          value={formData.q28_migration_reason || ((isBahu || (isMarriedFemale && formData.q27_last_residence_type !== 'here')) ? 4 : '')}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setFormData((prev) => {
+                              const next = { ...prev, q28_migration_reason: val };
+                              if (val === 4) {
+                                const calcDur = getCalculatedResidenceDuration(next, marriageYear);
+                                if (calcDur !== null) {
+                                  next.q29_residence_duration_years = String(calcDur);
+                                }
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                         >
                           <option value="">कारण चुनें</option>
                           {MIGRATION_REASON_CODES.map((mr) => (
@@ -3392,17 +3483,41 @@ export default function MemberModal({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        प्र. 29 यहाँ रहने की अवधि (पूर्ण वर्ष)
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.q29_residence_duration_years}
-                        onChange={(e) => setFormData({ ...formData, q29_residence_duration_years: sanitizeNumeric(e.target.value) })}
-                        placeholder="वर्ष (1 से कम = 0)"
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-bold"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          प्र. 29 यहाँ रहने की अवधि (पूर्ण वर्ष)
+                        </label>
+                        {calcDuration !== null && (
+                          <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-emerald-600" />
+                            विवाह अनुसार स्वतः गणना: {calcDuration} वर्ष
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formData.q29_residence_duration_years !== '' && formData.q29_residence_duration_years !== undefined
+                            ? formData.q29_residence_duration_years 
+                            : (calcDuration !== null ? String(calcDuration) : '')}
+                          onChange={(e) => setFormData({ ...formData, q29_residence_duration_years: sanitizeNumeric(e.target.value) })}
+                          placeholder="वर्ष (1 से कम = 0)"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm bg-white font-bold pr-28 focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                        />
+                        {calcDuration !== null && String(formData.q29_residence_duration_years) !== String(calcDuration) && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, q29_residence_duration_years: String(calcDuration) }))}
+                            className="absolute right-2 top-2 text-[10px] font-bold text-[#0B3B60] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-2 py-0.5 rounded-md transition-all active:scale-95"
+                          >
+                            विवाह अनुसार ({calcDuration} वर्ष)
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        (नोट: विवाह उपरांत ससुराल में रहने की कुल पूर्ण वर्ष अवधि। यदि 1 वर्ष से कम हुआ है तो 0 लिखें)
+                      </p>
                     </div>
                   </div>
                 )}
