@@ -512,47 +512,65 @@ function HouseholdProformaSheet({
                       )}
                     </td>
 
-                    {/* Q.20 Occupation */}
+                    {/* Q.20 Occupation (Only for Q.19 >= 3 per Flowchart) */}
                     <td className="border-r border-slate-700 p-1 text-[9.5px] text-left truncate max-w-[80px]">
-                      {m.q20_occupation || '—'}
+                      {m.q18_work_last_year <= 3 && m.q19_economic_activity >= 3 ? (
+                        m.q20_occupation || '—'
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
 
-                    {/* Q.21 Industry */}
+                    {/* Q.21 Industry (Only for Q.19 >= 3 per Flowchart) */}
                     <td className="border-r border-slate-700 p-1 text-[9.5px] text-left truncate max-w-[80px]">
-                      {m.q21_industry || '—'}
+                      {m.q18_work_last_year <= 3 && m.q19_economic_activity >= 3 ? (
+                        m.q21_industry || '—'
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
 
-                    {/* Q.22 Worker Class */}
+                    {/* Q.22 Worker Class (Only for Q.19 >= 3 per Flowchart) */}
                     <td className="border-r border-slate-700 p-1">
-                      {m.q18_work_last_year <= 3 ? (
+                      {m.q18_work_last_year <= 3 && m.q19_economic_activity >= 3 ? (
                         <SingleBox value={m.q22_worker_class} />
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
 
-                    {/* Q.23 Non-Economic */}
+                    {/* Q.23 Non-Economic (For Codes 2, 3 Marginal and Code 4 Non-Worker) */}
                     <td className="border-r border-slate-700 p-1">
-                      {m.q18_work_last_year === 4 ? (
+                      {m.q18_work_last_year >= 2 ? (
                         <SingleBox value={m.q23_non_economic_activity} />
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
 
-                    {/* Q.24 Seeking Work */}
+                    {/* Q.24 Seeking Work (For Codes 2, 3 Marginal and Code 4 Non-Worker) */}
                     <td className="border-r border-slate-700 p-1">
-                      <SingleBox value={m.q24_seeking_work} />
+                      {m.q18_work_last_year >= 2 ? (
+                        <SingleBox value={m.q24_seeking_work} />
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
 
-                    {/* Q.25 Commute */}
+                    {/* Q.25 Commute (Only for Workers 1, 2, 3) */}
                     <td className="border-r border-slate-700 p-1 text-[9px]">
-                      <div className="flex items-center justify-center gap-1">
-                        <span>क:</span> <DigitBoxes value={m.q25a_travel_distance_km || '0'} count={2} />
-                      </div>
-                      <div className="flex items-center justify-center gap-1 mt-0.5">
-                        <span>ग:</span> <SingleBox value={m.q25c_travel_mode} />
-                      </div>
+                      {m.q18_work_last_year <= 3 ? (
+                        <>
+                          <div className="flex items-center justify-center gap-1">
+                            <span>क:</span> <DigitBoxes value={m.q25a_travel_distance_km || '0'} count={2} />
+                          </div>
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            <span>ग:</span> <SingleBox value={m.q25c_travel_mode} />
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
 
                     {/* Q.26 Birth Place */}

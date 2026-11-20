@@ -204,7 +204,17 @@ export default function MemberModal({
   const age = Number(formData.q4b_age) || 0;
   const isFemale = Number(formData.q3_gender) === 2;
   const isMarriedOrEver = Number(formData.q5_marital_status) >= 2;
-  const isWorker = Number(formData.q18_work_last_year) <= 3;
+
+  // Census Classification Flags (Strict Flowchart Compliance)
+  const workCategory = Number(formData.q18_work_last_year); // 1 = Main, 2 = Marginal (3-6m), 3 = Marginal (<3m), 4 = Non-worker
+  const isMainWorker = workCategory === 1;
+  const isMarginalWorker = workCategory === 2 || workCategory === 3;
+  const isWorker = isMainWorker || isMarginalWorker; // Codes 1, 2, 3
+  const isNonWorker = workCategory === 4; // Code 4
+  const requiresNonEconomicActivity = workCategory >= 2; // Codes 2, 3, 4 must answer Q.23 and Q.24
+  const economicActivity = Number(formData.q19_economic_activity);
+  const isNonAgriEconomicActivity = isWorker && economicActivity >= 3; // Codes 3-8 answer Q.20, Q.21, Q.22
+
   const isClass11Plus = Number(formData.q17a_highest_education) >= 11;
 
   const potentialFathers = getPotentialFathers(formData, householdMembers);
@@ -406,7 +416,35 @@ export default function MemberModal({
       return;
     }
 
-    onSave(formData);
+    // Clean up fields based on Census Classification Flowchart before saving
+    const cleaned = { ...formData };
+    const wCat = Number(cleaned.q18_work_last_year);
+
+    if (wCat === 4) {
+      // Non-worker (कोड 4): केवल प्र. 23 व 24 लागू हैं, कार्य सम्बन्धी प्रश्न साफ करें
+      cleaned.q19_economic_activity = null;
+      cleaned.q20_occupation = '';
+      cleaned.q21_industry = '';
+      cleaned.q22_worker_class = null;
+      cleaned.q25a_travel_distance_km = null;
+      cleaned.q25b_travel_time_min = null;
+      cleaned.q25c_travel_mode = null;
+    } else {
+      // Worker (कोड 1, 2, 3)
+      if (Number(cleaned.q19_economic_activity) < 3) {
+        // कृषक (1) या कृषि श्रमिक (2): प्र. 20, 21, 22 लागू नहीं
+        cleaned.q20_occupation = '';
+        cleaned.q21_industry = '';
+        cleaned.q22_worker_class = null;
+      }
+      if (wCat === 1) {
+        // दीर्घकालिक कर्मी (कोड 1): प्र. 23 व 24 लागू नहीं
+        cleaned.q23_non_economic_activity = null;
+        cleaned.q24_seeking_work = null;
+      }
+    }
+
+    onSave(cleaned);
   };
 
   const tabs = [
@@ -1855,7 +1893,7 @@ export default function MemberModal({
             </div>
           )}
 
-          {/* TAB 3: कार्य एवं आर्थिक गतिविधि (प्र. 18 से 25) */}
+          {/* TAB 3: कार्य एवं आर्थिक गतिविधि (प्र. 18 से 25 - Matching Official Census Flowchart) */}
           {activeTab === 3 && (
             <div className="space-y-3.5">
               {age < 7 ? (
@@ -1865,16 +1903,16 @@ export default function MemberModal({
                 </div>
               ) : (
                 <>
-                  {/* Q.18 पिछला कार्य */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+                  {/* Q.18 क्या आपने पिछले वर्ष के दौरान कभी कार्य किया? */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                     <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                      प्र. 18 पिछले वर्ष कभी काम किया?
+                      प्र. 18 क्या आपने पिछले वर्ष के दौरान कभी कार्य किया?
                     </label>
                     <div className="relative">
                       <select
                         value={formData.q18_work_last_year}
                         onChange={(e) => setFormData({ ...formData, q18_work_last_year: Number(e.target.value) })}
-                        className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                        className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-xs sm:text-sm focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                       >
                         {WORK_LAST_YEAR_CODES.map((w) => (
                           <option key={w.code} value={w.code}>
@@ -1884,12 +1922,39 @@ export default function MemberModal({
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
+
+                    {/* Classification Info Badge */}
+                    <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                      isMainWorker
+                        ? 'bg-blue-50 text-[#0B3B60] border border-blue-200'
+                        : isMarginalWorker
+                        ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {isMainWorker && 'दीर्घकालिक कर्मी (Main Worker) • प्र. 19-22 आर्थिक गतिविधि व कार्य विवरण'}
+                        {workCategory === 2 && 'अल्पकालिक कर्मी (Marginal Worker 3-6 माह) • आर्थिक गतिविधि के साथ शेष समय की गैर-आर्थिक गतिविधि भी अनिवार्य'}
+                        {workCategory === 3 && 'अर्ध-अल्पकालिक कर्मी (Marginal Worker < 3 माह) • आर्थिक गतिविधि के साथ शेष समय की गैर-आर्थिक गतिविधि भी अनिवार्य'}
+                        {isNonWorker && 'गैर-कर्मी (Non-Worker) • प्र. 23 गैर-आर्थिक गतिविधि एवं प्र. 24 कार्य उपलब्धता'}
+                      </span>
+                    </div>
                   </div>
 
-                  {isWorker ? (
-                    <div className="space-y-3.5">
-                      {/* Q.19 आर्थिक गतिविधि */}
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+                  {/* ── BRANCH 1: आर्थिक गतिविधि (सभी कर्मियों कोड 1, 2, 3 हेतु) ── */}
+                  {isWorker && (
+                    <div className="space-y-3.5 bg-slate-50/70 p-3 sm:p-3.5 rounded-2xl border border-slate-200">
+                      <div className="border-b border-slate-200 pb-1.5 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                          आर्थिक गतिविधि व कार्य विवरण (प्र. 19 से 22, 25)
+                        </span>
+                        <span className="text-[10px] bg-[#0B3B60] text-white px-2 py-0.5 rounded-full font-bold">
+                          कर्मी कोड {workCategory}
+                        </span>
+                      </div>
+
+                      {/* Q.19 आर्थिक गतिविधि की श्रेणी */}
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-1">
                         <label className="block text-xs sm:text-sm font-bold text-slate-900">
                           प्र. 19 आर्थिक गतिविधि की श्रेणी
                         </label>
@@ -1897,7 +1962,7 @@ export default function MemberModal({
                           <select
                             value={formData.q19_economic_activity}
                             onChange={(e) => setFormData({ ...formData, q19_economic_activity: Number(e.target.value) })}
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-xs sm:text-sm focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {ECONOMIC_ACTIVITY_CODES.map((ea) => (
                               <option key={ea.code} value={ea.code}>
@@ -1909,57 +1974,75 @@ export default function MemberModal({
                         </div>
                       </div>
 
-                      {/* Q.20 & Q.21 */}
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                        <div>
-                          <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-0.5">
-                            प्र. 20 व्यवसाय (वास्तविक कार्य विवरण)
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.q20_occupation}
-                            onChange={(e) => setFormData({ ...formData, q20_occupation: sanitizeText(e.target.value) })}
-                            placeholder="उदा. कृषि, पशुपालन, राजमिस्त्री, दुकानदार, शिक्षक"
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-0.5">
-                            प्र. 21 उद्योग, व्यापार या सेवा
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.q21_industry}
-                            onChange={(e) => setFormData({ ...formData, q21_industry: sanitizeText(e.target.value) })}
-                            placeholder="उद्योग अथवा सेवा का विवरण"
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
-                          />
-                        </div>
-                      </div>
+                      {/* ── FLOWCHART ARROW: प्र. 20, 21, 22 केवल गैर-कृषि कोड 3 से 8 हेतु ── */}
+                      {isNonAgriEconomicActivity ? (
+                        <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+                          <div className="border-b border-slate-100 pb-1">
+                            <span className="text-[11px] font-bold text-slate-600">
+                              गैर-कृषि कार्य विवरण (प्र. 20, 21, 22)
+                            </span>
+                          </div>
 
-                      {/* Q.22 कर्मी वर्ग */}
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
-                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                          प्र. 22 कर्मी का वर्ग
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={formData.q22_worker_class}
-                            onChange={(e) => setFormData({ ...formData, q22_worker_class: Number(e.target.value) })}
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
-                          >
-                            {WORKER_CLASS_CODES.map((wc) => (
-                              <option key={wc.code} value={wc.code}>
-                                {wc.label}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                        </div>
-                      </div>
+                          {/* Q.20 & Q.21 */}
+                          <div className="space-y-2">
+                            <div>
+                              <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-0.5">
+                                प्र. 20 व्यवसाय (वास्तविक कार्य का स्वरूप)
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.q20_occupation}
+                                onChange={(e) => setFormData({ ...formData, q20_occupation: sanitizeText(e.target.value) })}
+                                placeholder="उदा. राजमिस्त्री, दुकानदार, शिक्षक, बुनकर, बढ़ई"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm bg-white font-medium"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-0.5">
+                                प्र. 21 उद्योग, व्यापार या सेवा की प्रकृति
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.q21_industry}
+                                onChange={(e) => setFormData({ ...formData, q21_industry: sanitizeText(e.target.value) })}
+                                placeholder="उदा. कपड़ा निर्माण, ईंट भट्ठा, फुटकर दुकान, निजी विद्यालय"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm bg-white font-medium"
+                              />
+                            </div>
+                          </div>
 
-                      {/* Q.25 यात्रा */}
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
+                          {/* Q.22 कर्मी का वर्ग */}
+                          <div className="space-y-1">
+                            <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                              प्र. 22 कर्मी का वर्ग
+                            </label>
+                            <div className="relative">
+                              <select
+                                value={formData.q22_worker_class}
+                                onChange={(e) => setFormData({ ...formData, q22_worker_class: Number(e.target.value) })}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-xs sm:text-sm"
+                              >
+                                {WORKER_CLASS_CODES.map((wc) => (
+                                  <option key={wc.code} value={wc.code}>
+                                    {wc.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            {economicActivity === 1 ? 'कृषक (काश्तकार)' : 'कृषि श्रमिक (खेतीहर मजदूर)'} हेतु व्यवसाय, उद्योग व वर्ग स्वतः निर्धारित हैं (प्र. 20, 21, 22 लागू नहीं)।
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Q.25 कार्यस्थल तक यात्रा */}
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2">
                         <label className="block text-xs sm:text-sm font-bold text-slate-900">
                           प्र. 25(ग) कार्यस्थल तक यात्रा का साधन
                         </label>
@@ -1967,7 +2050,7 @@ export default function MemberModal({
                           <select
                             value={formData.q25c_travel_mode}
                             onChange={(e) => setFormData({ ...formData, q25c_travel_mode: Number(e.target.value) })}
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-xs sm:text-sm"
                           >
                             {COMMUTE_MODE_CODES.map((cm) => (
                               <option key={cm.code} value={cm.code}>
@@ -2010,9 +2093,29 @@ export default function MemberModal({
                         )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-3.5">
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
+                  )}
+
+                  {/* ── BRANCH 2: गैर-आर्थिक गतिविधि व कार्य उपलब्धता (कोड 2, 3 एवं 4 हेतु) ── */}
+                  {requiresNonEconomicActivity && (
+                    <div className={`space-y-3 p-3.5 rounded-2xl border ${
+                      isMarginalWorker
+                        ? 'bg-amber-50/70 border-amber-300 shadow-xs'
+                        : 'bg-white border-slate-200/90 shadow-sm'
+                    }`}>
+                      <div className="border-b border-amber-200/60 pb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className={`w-2.5 h-2.5 rounded-full ${isMarginalWorker ? 'bg-amber-500' : 'bg-[#0B3B60]'}`} />
+                          {isMarginalWorker
+                            ? 'शेष वर्ष की गैर-आर्थिक गतिविधि व कार्य उपलब्धता (प्र. 23 व 24)'
+                            : 'गैर-आर्थिक गतिविधि एवं कार्य उपलब्धता (प्र. 23 व 24)'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                          {isMarginalWorker ? 'अल्पकालिक कर्मी हेतु' : 'गैर-कर्मी हेतु'}
+                        </span>
+                      </div>
+
+                      {/* Q.23 गैर-आर्थिक गतिविधि */}
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
                         <label className="block text-xs sm:text-sm font-bold text-slate-900">
                           प्र. 23 गैर-आर्थिक गतिविधि
                         </label>
@@ -2020,7 +2123,7 @@ export default function MemberModal({
                           <select
                             value={formData.q23_non_economic_activity}
                             onChange={(e) => setFormData({ ...formData, q23_non_economic_activity: Number(e.target.value) })}
-                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-xs sm:text-sm focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
                           >
                             {NON_ECONOMIC_ACTIVITY_CODES.map((ne) => (
                               <option key={ne.code} value={ne.code}>
@@ -2032,9 +2135,10 @@ export default function MemberModal({
                         </div>
                       </div>
 
-                      <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
-                        <label className="block text-xs sm:text-sm font-bold text-slate-900 mb-1">
-                          प्र. 24 काम की तलाश अथवा उपलब्धता
+                      {/* Q.24 काम की तलाश में या काम के लिए उपलब्ध */}
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          प्र. 24 काम की तलाश में या काम के लिए उपलब्ध
                         </label>
                         <div className="grid grid-cols-3 gap-1.5">
                           {[
@@ -2046,10 +2150,10 @@ export default function MemberModal({
                               key={item.code}
                               type="button"
                               onClick={() => setFormData({ ...formData, q24_seeking_work: item.code })}
-                              className={`py-2 rounded-lg font-bold text-xs border ${
+                              className={`py-2 rounded-lg font-bold text-xs border transition-all ${
                                 formData.q24_seeking_work === item.code
-                                  ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                                  : 'bg-white text-slate-700 border-slate-200'
+                                  ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                               }`}
                             >
                               {item.label}

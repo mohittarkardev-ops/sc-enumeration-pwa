@@ -631,14 +631,22 @@ export default function CensusProformaView({
                             ) : <span className="text-slate-300">—</span>}
                           </td>
 
-                          {/* Q.20 Occupation */}
+                          {/* Q.20 Occupation (Only for Q.19 >= 3 per Flowchart) */}
                           <td className="border-r border-slate-700 p-1 text-left text-[10px] truncate max-w-[85px]">
-                            {m.q20_occupation || '—'}
+                            {Number(m.q18_work_last_year) <= 3 && Number(m.q19_economic_activity) >= 3 ? (
+                              m.q20_occupation || '—'
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
                           </td>
 
-                          {/* Q.21 Industry */}
+                          {/* Q.21 Industry (Only for Q.19 >= 3 per Flowchart) */}
                           <td className="border-r border-slate-700 p-1 text-left text-[10px] truncate max-w-[85px]">
-                            {m.q21_industry || '—'}
+                            {Number(m.q18_work_last_year) <= 3 && Number(m.q19_economic_activity) >= 3 ? (
+                              m.q21_industry || '—'
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
                           </td>
 
                           {/* Q.22 Worker Class */}

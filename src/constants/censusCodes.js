@@ -109,37 +109,37 @@ export const EDUCATION_SUBJECT_CODES = [
 ];
 
 export const WORK_LAST_YEAR_CODES = [
-  { code: 1, label: "1 - दीर्घकालिक कर्मी (6 माह+)" },
-  { code: 2, label: "2 - अल्पकालिक कर्मी (3 से 6 माह)" },
-  { code: 3, label: "3 - अर्ध-अल्पकालिक (3 माह से कम)" },
+  { code: 1, label: "1 - दीर्घकालिक कर्मी (6 महीने या उससे अधिक)" },
+  { code: 2, label: "2 - अल्पकालिक कर्मी (3 महीने या अधिक, 6 माह से कम)" },
+  { code: 3, label: "3 - अर्ध-अल्पकालिक कर्मी (3 महीने से कम)" },
   { code: 4, label: "4 - गैर-कर्मी (काम नहीं किया)" }
 ];
 
 export const ECONOMIC_ACTIVITY_CODES = [
-  { code: 1, label: "1 - कृषक (किसान)" },
-  { code: 2, label: "2 - कृषि मजदूर" },
-  { code: 3, label: "3 - घरेलू उद्योग" },
-  { code: 4, label: "4 - बागान / पशुधन / वानिकी / मत्स्य" },
-  { code: 5, label: "5 - विनिर्माण (Manufacturing)" },
-  { code: 6, label: "6 - निर्माण (Construction)" },
-  { code: 7, label: "7 - सेवाएँ (Services)" },
-  { code: 8, label: "8 - अन्य" }
+  { code: 1, label: "1 - कृषक (काश्तकार)" },
+  { code: 2, label: "2 - कृषि श्रमिक (खेतीहर मजदूर)" },
+  { code: 3, label: "3 - एचएचआई (पारिवारिक उद्योग)" },
+  { code: 4, label: "4 - अन्य कर्मी (बागान, पशुपालन, वानिकी, मत्स्य, शिकार आदि)" },
+  { code: 5, label: "5 - विनिर्माण गतिविधियां" },
+  { code: 6, label: "6 - निर्माण गतिविधियां" },
+  { code: 7, label: "7 - सेवा गतिविधियां" },
+  { code: 8, label: "8 - अन्य गतिविधियां" }
 ];
 
 export const WORKER_CLASS_CODES = [
   { code: 1, label: "1 - नियोक्ता (Employer)" },
   { code: 2, label: "2 - कर्मचारी (Employee)" },
-  { code: 3, label: "3 - एकल कर्मी (Self-employed)" },
-  { code: 4, label: "4 - पारिवारिक कर्मी (Family worker)" }
+  { code: 3, label: "3 - एकल कर्मी (Single Worker)" },
+  { code: 4, label: "4 - पारिवारिक कर्मी (Family Worker)" }
 ];
 
 export const NON_ECONOMIC_ACTIVITY_CODES = [
-  { code: 1, label: "1 - छात्र / छात्रा" },
-  { code: 2, label: "2 - गृह कार्य (घरेलू काम)" },
+  { code: 1, label: "1 - विद्यार्थी (Student)" },
+  { code: 2, label: "2 - गृह कार्य (Household Duties)" },
   { code: 3, label: "3 - आश्रित (Dependent)" },
-  { code: 4, label: "4 - पेंशन भोगी" },
-  { code: 5, label: "5 - किरायाजीवी" },
-  { code: 6, label: "6 - अन्य" }
+  { code: 4, label: "4 - पेंशनभोगी (Pensioner)" },
+  { code: 5, label: "5 - किराया प्राप्तकर्ता (Rentier)" },
+  { code: 6, label: "6 - अन्य (Other)" }
 ];
 
 export const COMMUTE_MODE_CODES = [
