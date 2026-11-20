@@ -200,12 +200,76 @@ export const checkDatabaseConnection = async (customUrl, customKey) => {
 };
 
 /**
+ * Recursively sanitizes any value in a payload so PostgreSQL never throws:
+ * "unsupported Unicode escape sequence" (SQLSTATE 22P05) or null-byte rejection.
+ * 1. Strips U+0000 null characters (\0) and literal "\u0000"
+ * 2. Strips unprintable control characters [\x00-\x08\x0B\x0C\x0E-\x1F\x7F]
+ * 3. Normalizes / strips lone unicode surrogates
+ */
+export function sanitizeForPostgres(val) {
+  if (val === null || val === undefined) return val;
+  if (typeof val === 'string') {
+    let clean = val
+      .replace(/\0/g, '')
+      .replace(/\\u0000/gi, '')
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+
+    // Normalize lone unicode surrogates
+    if (typeof clean.toWellFormed === 'function') {
+      clean = clean.toWellFormed();
+    } else {
+      clean = clean.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, '$1');
+    }
+    clean = clean.replace(/\uFFFD/g, '');
+    return clean.trim();
+  }
+  if (Array.isArray(val)) {
+    return val.map(sanitizeForPostgres);
+  }
+  if (typeof val === 'object') {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(val)) {
+      cleaned[k] = sanitizeForPostgres(v);
+    }
+    return cleaned;
+  }
+  return val;
+}
+
+/**
+ * Scans all IndexedDB Dexie households and members and heals any corrupt Unicode / null bytes.
+ * This guarantees that even if a member (e.g. ब्रजेश) was previously saved with a null byte,
+ * it is permanently repaired locally before the sync request is dispatched.
+ */
+export const sanitizeAllLocalDexieRecords = async () => {
+  try {
+    const members = await db.members.toArray();
+    for (const m of members) {
+      const cleaned = sanitizeForPostgres(m);
+      if (JSON.stringify(cleaned) !== JSON.stringify(m)) {
+        await db.members.put(cleaned);
+      }
+    }
+    const households = await db.households.toArray();
+    for (const hh of households) {
+      const cleaned = sanitizeForPostgres(hh);
+      if (JSON.stringify(cleaned) !== JSON.stringify(hh)) {
+        await db.households.put(cleaned);
+      }
+    }
+  } catch (err) {
+    console.warn('Local Dexie sanitize sweep notice:', err);
+  }
+};
+
+/**
  * Resiliently upserts a member record to Supabase.
  * If the remote PostgreSQL table lacks optional columns from recent migrations,
  * it catches the 'column not found' schema error, strips that column, and retries.
+ * Also catches PostgreSQL 22P05 unicode escape errors with deep character sanitization.
  */
 async function safeUpsertMemberRecord(supabase, initialPayload) {
-  let payload = { ...initialPayload };
+  let payload = sanitizeForPostgres({ ...initialPayload });
   for (let attempt = 0; attempt < 6; attempt++) {
     const { error } = await supabase
       .from('members')
@@ -220,6 +284,21 @@ async function safeUpsertMemberRecord(supabase, initialPayload) {
     if (match && match[1] && payload[match[1]] !== undefined) {
       console.warn(`Supabase schema resilience: dropping missing remote column '${match[1]}' and retrying member upsert.`);
       delete payload[match[1]];
+      continue;
+    }
+
+    // Resilience against Unicode escape / encoding errors (SQLSTATE 22P05)
+    if (error.message?.includes('unsupported Unicode escape sequence') || error.code === '22P05') {
+      console.warn('Supabase unicode escape detected, applying deep fallback:', error.message);
+      for (const [key, value] of Object.entries(payload)) {
+        if (typeof value === 'string') {
+          payload[key] = value
+            .replace(/[^\P{C}\n\t]/gu, '')
+            .replace(/\\u[0-9a-fA-F]{0,4}/g, '')
+            .replace(/\\/g, '')
+            .trim();
+        }
+      }
       continue;
     }
 
@@ -261,7 +340,7 @@ export const pushPendingLocalData = async (supabase) => {
 
     const { data: remoteHh, error: hhError } = await supabase
       .from('households')
-      .upsert(hhPayload, { onConflict: 'local_id' })
+      .upsert(sanitizeForPostgres(hhPayload), { onConflict: 'local_id' })
       .select('id')
       .single();
 
@@ -295,88 +374,95 @@ export const pushPendingLocalData = async (supabase) => {
     }
 
     for (const m of pendingMembers) {
-      const memberLocalId = m.local_id || `mem_${hh.local_id}_${m.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
-      const memberPayload = {
+      const cleanM = sanitizeForPostgres(m);
+      if (JSON.stringify(cleanM) !== JSON.stringify(m)) {
+        await db.members.put(cleanM);
+      }
+
+      const memberLocalId = cleanM.local_id || m.local_id || `mem_${hh.local_id}_${cleanM.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
+      const memberPayload = sanitizeForPostgres({
         local_id: memberLocalId,
         household_id: supabaseHouseholdId,
-        serial_no: Number(m.serial_no),
-        q1_name: m.q1_name || 'अज्ञात',
-        q2_relationship: Number(m.q2_relationship) || 1,
-        q3_gender: Number(m.q3_gender) || 1,
-        q4a_dob: m.q4a_dob || null,
-        q4b_age: Number(m.q4b_age) || 0,
-        q5_marital_status: Number(m.q5_marital_status) || 1,
-        q6_age_at_marriage: m.q6_age_at_marriage ? Number(m.q6_age_at_marriage) : null,
-        q7_spouse_serial_no: m.q7_spouse_serial_no ? String(m.q7_spouse_serial_no) : null,
-        q8_nationality: m.q8_nationality || 'भारत',
-        q9_religion: Number(m.q9_religion) || 1,
-        q9_religion_other: m.q9_religion_other || null,
-        q10a_sc_st: Number(m.q10a_sc_st) || 3,
-        q10b_caste_code: m.q10b_caste_code || null,
-        q10c_caste_name: m.q10c_caste_name || null,
-        q11_father_in_hh: !!m.q11_father_in_hh,
-        q11_father_serial_no: m.q11_father_serial_no ? Number(m.q11_father_serial_no) : null,
-        q11_father_name: m.q11_father_name || null,
-        q11_father_dob: m.q11_father_dob || null,
-        q11_father_birthplace: m.q11_father_birthplace || null,
-        q11_father_alive: m.q11_father_alive !== undefined ? !!m.q11_father_alive : null,
-        q11_father_religion: m.q11_father_religion ? Number(m.q11_father_religion) : null,
-        q12_mother_in_hh: !!m.q12_mother_in_hh,
-        q12_mother_serial_no: m.q12_mother_serial_no ? Number(m.q12_mother_serial_no) : null,
-        q12_mother_name: m.q12_mother_name || null,
-        q12_mother_dob: m.q12_mother_dob || null,
-        q12_mother_birthplace: m.q12_mother_birthplace || null,
-        q12_mother_alive: m.q12_mother_alive !== undefined ? !!m.q12_mother_alive : null,
-        q12_mother_religion: m.q12_mother_religion ? Number(m.q12_mother_religion) : null,
-        q13a_disabled: Number(m.q13a_disabled) || 2,
-        q13b_disability_types: Array.isArray(m.q13b_disability_types) ? m.q13b_disability_types.map(Number) : [],
-        q14a_mother_tongue: m.q14a_mother_tongue || 'हिन्दी',
-        q14b_other_languages: Array.isArray(m.q14b_other_languages) ? m.q14b_other_languages : (m.q14b_other_lang1 ? [m.q14b_other_lang1, m.q14c_other_lang2].filter(Boolean) : []),
-        q15a_literacy: m.q15a_literacy ? Number(m.q15a_literacy) : null,
-        q15b_digital_literate: m.q15b_digital_literate ? Number(m.q15b_digital_literate) : null,
-        q16_education_status: m.q16_education_status ? Number(m.q16_education_status) : null,
-        q17a_highest_education: m.q17a_highest_education !== undefined ? Number(m.q17a_highest_education) : null,
-        q17b_subject: m.q17b_subject ? Number(m.q17b_subject) : null,
-        q18_work_last_year: m.q18_work_last_year ? Number(m.q18_work_last_year) : 4,
-        q19_economic_activity: m.q19_economic_activity ? Number(m.q19_economic_activity) : null,
-        q20_occupation: m.q20_occupation || null,
-        q21_industry: m.q21_industry || null,
-        q22_worker_class: m.q22_worker_class ? Number(m.q22_worker_class) : null,
-        q23_non_economic_activity: m.q23_non_economic_activity ? Number(m.q23_non_economic_activity) : null,
-        q24_seeking_work: m.q24_seeking_work ? Number(m.q24_seeking_work) : null,
-        q25a_travel_distance_km: m.q25a_travel_distance_km ? Number(m.q25a_travel_distance_km) : null,
-        q25b_travel_time_min: m.q25b_travel_time_min ? Number(m.q25b_travel_time_min) : null,
-        q25c_travel_mode: m.q25c_travel_mode !== undefined ? Number(m.q25c_travel_mode) : null,
-        q26_birth_place_type: m.q26_birth_place_type || 'here',
-        q27_last_residence_type: m.q27_last_residence_type || 'here',
-        q27b_rural_urban: m.q27b_rural_urban ? Number(m.q27b_rural_urban) : 1,
-        q28_migration_reason: m.q28_migration_reason ? Number(m.q28_migration_reason) : null,
-        q29_residence_duration_years: m.q29_residence_duration_years ? Number(m.q29_residence_duration_years) : null,
-        q30_permanent_address_same: !!m.q30_permanent_address_same,
-        q30_permanent_address: m.q30_permanent_address || null,
-        q31_children_ever_born_female: Number(m.q31_children_ever_born_female) || 0,
-        q31_children_ever_born_male: Number(m.q31_children_ever_born_male) || 0,
-        q32_children_surviving_female: Number(m.q32_children_surviving_female) || 0,
-        q32_children_surviving_male: Number(m.q32_children_surviving_male) || 0,
-        q33_children_born_last_year_female: Number(m.q33_children_born_last_year_female) || 0,
-        q33_children_born_last_year_male: Number(m.q33_children_born_last_year_male) || 0,
-        q34a_covid_vaccinated: m.q34a_covid_vaccinated ? Number(m.q34a_covid_vaccinated) : null,
-        q34b_covid_vaccine_place: m.q34b_covid_vaccine_place || null,
-        q35_bank_accounts_count: Number(m.q35_bank_accounts_count) || 1,
-        q36_mobile_number: m.q36_mobile_number || null,
-        q37_aadhaar_number: m.q37_aadhaar_number || null,
-        q38_voter_id_epic: m.q38_voter_id_epic || null,
-        q39_passport_number: m.q39_passport_number || null,
-        q40_driving_license: m.q40_driving_license ? Number(m.q40_driving_license) : null
-      };
+        serial_no: Number(cleanM.serial_no),
+        q1_name: cleanM.q1_name || 'अज्ञात',
+        q2_relationship: Number(cleanM.q2_relationship) || 1,
+        q3_gender: Number(cleanM.q3_gender) || 1,
+        q4a_dob: cleanM.q4a_dob || null,
+        q4b_age: Number(cleanM.q4b_age) || 0,
+        q5_marital_status: Number(cleanM.q5_marital_status) || 1,
+        q6_age_at_marriage: cleanM.q6_age_at_marriage ? Number(cleanM.q6_age_at_marriage) : null,
+        q7_spouse_serial_no: cleanM.q7_spouse_serial_no ? String(cleanM.q7_spouse_serial_no) : null,
+        q8_nationality: cleanM.q8_nationality || 'भारत',
+        q9_religion: Number(cleanM.q9_religion) || 1,
+        q9_religion_other: cleanM.q9_religion_other || null,
+        q10a_sc_st: Number(cleanM.q10a_sc_st) || 3,
+        q10b_caste_code: cleanM.q10b_caste_code || null,
+        q10c_caste_name: cleanM.q10c_caste_name || null,
+        q11_father_in_hh: !!cleanM.q11_father_in_hh,
+        q11_father_serial_no: cleanM.q11_father_serial_no ? Number(cleanM.q11_father_serial_no) : null,
+        q11_father_name: cleanM.q11_father_name || null,
+        q11_father_dob: cleanM.q11_father_dob || null,
+        q11_father_birthplace: cleanM.q11_father_birthplace || null,
+        q11_father_alive: cleanM.q11_father_alive !== undefined ? !!cleanM.q11_father_alive : null,
+        q11_father_religion: cleanM.q11_father_religion ? Number(cleanM.q11_father_religion) : null,
+        q12_mother_in_hh: !!cleanM.q12_mother_in_hh,
+        q12_mother_serial_no: cleanM.q12_mother_serial_no ? Number(cleanM.q12_mother_serial_no) : null,
+        q12_mother_name: cleanM.q12_mother_name || null,
+        q12_mother_dob: cleanM.q12_mother_dob || null,
+        q12_mother_birthplace: cleanM.q12_mother_birthplace || null,
+        q12_mother_alive: cleanM.q12_mother_alive !== undefined ? !!cleanM.q12_mother_alive : null,
+        q12_mother_religion: cleanM.q12_mother_religion ? Number(cleanM.q12_mother_religion) : null,
+        q13a_disabled: Number(cleanM.q13a_disabled) || 2,
+        q13b_disability_types: Array.isArray(cleanM.q13b_disability_types) ? cleanM.q13b_disability_types.map(Number) : [],
+        q14a_mother_tongue: cleanM.q14a_mother_tongue || 'हिन्दी',
+        q14b_other_languages: Array.isArray(cleanM.q14b_other_languages) ? cleanM.q14b_other_languages : (cleanM.q14b_other_lang1 ? [cleanM.q14b_other_lang1, cleanM.q14c_other_lang2].filter(Boolean) : []),
+        q15a_literacy: cleanM.q15a_literacy ? Number(cleanM.q15a_literacy) : null,
+        q15b_digital_literate: cleanM.q15b_digital_literate ? Number(cleanM.q15b_digital_literate) : null,
+        q16_education_status: cleanM.q16_education_status ? Number(cleanM.q16_education_status) : null,
+        q17a_highest_education: cleanM.q17a_highest_education !== undefined ? Number(cleanM.q17a_highest_education) : null,
+        q17b_subject: cleanM.q17b_subject ? Number(cleanM.q17b_subject) : null,
+        q18_work_last_year: cleanM.q18_work_last_year ? Number(cleanM.q18_work_last_year) : 4,
+        q19_economic_activity: cleanM.q19_economic_activity ? Number(cleanM.q19_economic_activity) : null,
+        q20_occupation: cleanM.q20_occupation || null,
+        q21_industry: cleanM.q21_industry || null,
+        q22_worker_class: cleanM.q22_worker_class ? Number(cleanM.q22_worker_class) : null,
+        q23_non_economic_activity: cleanM.q23_non_economic_activity ? Number(cleanM.q23_non_economic_activity) : null,
+        q24_seeking_work: cleanM.q24_seeking_work ? Number(cleanM.q24_seeking_work) : null,
+        q25a_travel_distance_km: cleanM.q25a_travel_distance_km ? Number(cleanM.q25a_travel_distance_km) : null,
+        q25b_travel_time_min: cleanM.q25b_travel_time_min ? Number(cleanM.q25b_travel_time_min) : null,
+        q25c_travel_mode: cleanM.q25c_travel_mode !== undefined ? Number(cleanM.q25c_travel_mode) : null,
+        q26_birth_place_type: cleanM.q26_birth_place_type || 'here',
+        q26_birth_place_details: cleanM.q26_birth_place_details || [cleanM.q26_village, cleanM.q26_district, cleanM.q26_state, cleanM.q26_country].filter(Boolean).join(', ') || null,
+        q27_last_residence_type: cleanM.q27_last_residence_type || 'here',
+        q27_last_residence_details: cleanM.q27_last_residence_details || [cleanM.q27_village, cleanM.q27_district, cleanM.q27_state, cleanM.q27_country].filter(Boolean).join(', ') || null,
+        q27b_rural_urban: cleanM.q27b_rural_urban ? Number(cleanM.q27b_rural_urban) : 1,
+        q28_migration_reason: cleanM.q28_migration_reason ? Number(cleanM.q28_migration_reason) : null,
+        q29_residence_duration_years: cleanM.q29_residence_duration_years ? Number(cleanM.q29_residence_duration_years) : null,
+        q30_permanent_address_same: !!cleanM.q30_permanent_address_same,
+        q30_permanent_address: cleanM.q30_permanent_address || null,
+        q31_children_ever_born_female: Number(cleanM.q31_children_ever_born_female) || 0,
+        q31_children_ever_born_male: Number(cleanM.q31_children_ever_born_male) || 0,
+        q32_children_surviving_female: Number(cleanM.q32_children_surviving_female) || 0,
+        q32_children_surviving_male: Number(cleanM.q32_children_surviving_male) || 0,
+        q33_children_born_last_year_female: Number(cleanM.q33_children_born_last_year_female) || 0,
+        q33_children_born_last_year_male: Number(cleanM.q33_children_born_last_year_male) || 0,
+        q34a_covid_vaccinated: cleanM.q34a_covid_vaccinated ? Number(cleanM.q34a_covid_vaccinated) : null,
+        q34b_covid_vaccine_place: cleanM.q34b_covid_vaccine_place || null,
+        q35_bank_accounts_count: Number(cleanM.q35_bank_accounts_count) || 1,
+        q36_mobile_number: cleanM.q36_mobile_number || null,
+        q37_aadhaar_number: cleanM.q37_aadhaar_number || null,
+        q38_voter_id_epic: cleanM.q38_voter_id_epic || null,
+        q39_passport_number: cleanM.q39_passport_number || null,
+        q40_driving_license: cleanM.q40_driving_license ? Number(cleanM.q40_driving_license) : null
+      });
 
       const { success: mSuccess, error: mError } = await safeUpsertMemberRecord(supabase, memberPayload);
 
       if (!mSuccess) {
         console.error('सदस्य अपलोड त्रुटि:', mError);
-        errors.push(`सदस्य ${m.q1_name}: ${mError.message}`);
+        errors.push(`सदस्य ${cleanM.q1_name || m.q1_name}: ${mError.message}`);
       } else {
-        await db.members.update(memberLocalId, { sync_status: 'synced', local_id: memberLocalId });
+        await db.members.update(cleanM.local_id || memberLocalId, { sync_status: 'synced', local_id: memberLocalId });
         syncedMemCount++;
       }
     }
@@ -388,97 +474,104 @@ export const pushPendingLocalData = async (supabase) => {
   try {
     const allPendingMembers = await db.members.where('sync_status').equals('pending').toArray();
     for (const m of allPendingMembers) {
+      const cleanM = sanitizeForPostgres(m);
+      if (JSON.stringify(cleanM) !== JSON.stringify(m)) {
+        await db.members.put(cleanM);
+      }
+
       // Find parent household (must be synced and have a supabase_id)
       const parentHh = await db.households
         .where('local_id')
-        .equals(m.household_local_id || '')
+        .equals(cleanM.household_local_id || m.household_local_id || '')
         .first();
       if (!parentHh || !parentHh.supabase_id) continue; // parent not yet synced — skip
 
       const supabaseHouseholdId = parentHh.supabase_id;
-      const memberLocalId = m.local_id || `mem_${parentHh.local_id}_${m.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
+      const memberLocalId = cleanM.local_id || m.local_id || `mem_${parentHh.local_id}_${cleanM.serial_no}_${Math.random().toString(36).substring(2, 6)}`;
 
-      const memberPayload = {
+      const memberPayload = sanitizeForPostgres({
         local_id: memberLocalId,
         household_id: supabaseHouseholdId,
-        serial_no: Number(m.serial_no),
-        q1_name: m.q1_name || 'अज्ञात',
-        q2_relationship: Number(m.q2_relationship) || 1,
-        q3_gender: Number(m.q3_gender) || 1,
-        q4a_dob: m.q4a_dob || null,
-        q4b_age: Number(m.q4b_age) || 0,
-        q5_marital_status: Number(m.q5_marital_status) || 1,
-        q6_age_at_marriage: m.q6_age_at_marriage ? Number(m.q6_age_at_marriage) : null,
-        q7_spouse_serial_no: m.q7_spouse_serial_no ? String(m.q7_spouse_serial_no) : null,
-        q8_nationality: m.q8_nationality || 'भारत',
-        q9_religion: Number(m.q9_religion) || 1,
-        q9_religion_other: m.q9_religion_other || null,
-        q10a_sc_st: Number(m.q10a_sc_st) || 3,
-        q10b_caste_code: m.q10b_caste_code || null,
-        q10c_caste_name: m.q10c_caste_name || null,
-        q11_father_in_hh: !!m.q11_father_in_hh,
-        q11_father_serial_no: m.q11_father_serial_no ? Number(m.q11_father_serial_no) : null,
-        q11_father_name: m.q11_father_name || null,
-        q11_father_dob: m.q11_father_dob || null,
-        q11_father_birthplace: m.q11_father_birthplace || null,
-        q11_father_alive: m.q11_father_alive !== undefined ? !!m.q11_father_alive : null,
-        q11_father_religion: m.q11_father_religion ? Number(m.q11_father_religion) : null,
-        q12_mother_in_hh: !!m.q12_mother_in_hh,
-        q12_mother_serial_no: m.q12_mother_serial_no ? Number(m.q12_mother_serial_no) : null,
-        q12_mother_name: m.q12_mother_name || null,
-        q12_mother_dob: m.q12_mother_dob || null,
-        q12_mother_birthplace: m.q12_mother_birthplace || null,
-        q12_mother_alive: m.q12_mother_alive !== undefined ? !!m.q12_mother_alive : null,
-        q12_mother_religion: m.q12_mother_religion ? Number(m.q12_mother_religion) : null,
-        q13a_disabled: Number(m.q13a_disabled) || 2,
-        q13b_disability_types: Array.isArray(m.q13b_disability_types) ? m.q13b_disability_types.map(Number) : [],
-        q14a_mother_tongue: m.q14a_mother_tongue || 'हिन्दी',
-        q14b_other_languages: Array.isArray(m.q14b_other_languages) ? m.q14b_other_languages : (m.q14b_other_lang1 ? [m.q14b_other_lang1, m.q14c_other_lang2].filter(Boolean) : []),
-        q15a_literacy: m.q15a_literacy ? Number(m.q15a_literacy) : null,
-        q15b_digital_literate: m.q15b_digital_literate ? Number(m.q15b_digital_literate) : null,
-        q16_education_status: m.q16_education_status ? Number(m.q16_education_status) : null,
-        q17a_highest_education: m.q17a_highest_education !== undefined ? Number(m.q17a_highest_education) : null,
-        q17b_subject: m.q17b_subject ? Number(m.q17b_subject) : null,
-        q18_work_last_year: m.q18_work_last_year ? Number(m.q18_work_last_year) : 4,
-        q19_economic_activity: m.q19_economic_activity ? Number(m.q19_economic_activity) : null,
-        q20_occupation: m.q20_occupation || null,
-        q21_industry: m.q21_industry || null,
-        q22_worker_class: m.q22_worker_class ? Number(m.q22_worker_class) : null,
-        q23_non_economic_activity: m.q23_non_economic_activity ? Number(m.q23_non_economic_activity) : null,
-        q24_seeking_work: m.q24_seeking_work ? Number(m.q24_seeking_work) : null,
-        q25a_travel_distance_km: m.q25a_travel_distance_km ? Number(m.q25a_travel_distance_km) : null,
-        q25b_travel_time_min: m.q25b_travel_time_min ? Number(m.q25b_travel_time_min) : null,
-        q25c_travel_mode: m.q25c_travel_mode !== undefined ? Number(m.q25c_travel_mode) : null,
-        q26_birth_place_type: m.q26_birth_place_type || 'here',
-        q27_last_residence_type: m.q27_last_residence_type || 'here',
-        q27b_rural_urban: m.q27b_rural_urban ? Number(m.q27b_rural_urban) : 1,
-        q28_migration_reason: m.q28_migration_reason ? Number(m.q28_migration_reason) : null,
-        q29_residence_duration_years: m.q29_residence_duration_years ? Number(m.q29_residence_duration_years) : null,
-        q30_permanent_address_same: !!m.q30_permanent_address_same,
-        q30_permanent_address: m.q30_permanent_address || null,
-        q31_children_ever_born_female: Number(m.q31_children_ever_born_female) || 0,
-        q31_children_ever_born_male: Number(m.q31_children_ever_born_male) || 0,
-        q32_children_surviving_female: Number(m.q32_children_surviving_female) || 0,
-        q32_children_surviving_male: Number(m.q32_children_surviving_male) || 0,
-        q33_children_born_last_year_female: Number(m.q33_children_born_last_year_female) || 0,
-        q33_children_born_last_year_male: Number(m.q33_children_born_last_year_male) || 0,
-        q34a_covid_vaccinated: m.q34a_covid_vaccinated ? Number(m.q34a_covid_vaccinated) : null,
-        q34b_covid_vaccine_place: m.q34b_covid_vaccine_place || null,
-        q35_bank_accounts_count: Number(m.q35_bank_accounts_count) || 1,
-        q36_mobile_number: m.q36_mobile_number || null,
-        q37_aadhaar_number: m.q37_aadhaar_number || null,
-        q38_voter_id_epic: m.q38_voter_id_epic || null,
-        q39_passport_number: m.q39_passport_number || null,
-        q40_driving_license: m.q40_driving_license ? Number(m.q40_driving_license) : null
-      };
+        serial_no: Number(cleanM.serial_no),
+        q1_name: cleanM.q1_name || 'अज्ञात',
+        q2_relationship: Number(cleanM.q2_relationship) || 1,
+        q3_gender: Number(cleanM.q3_gender) || 1,
+        q4a_dob: cleanM.q4a_dob || null,
+        q4b_age: Number(cleanM.q4b_age) || 0,
+        q5_marital_status: Number(cleanM.q5_marital_status) || 1,
+        q6_age_at_marriage: cleanM.q6_age_at_marriage ? Number(cleanM.q6_age_at_marriage) : null,
+        q7_spouse_serial_no: cleanM.q7_spouse_serial_no ? String(cleanM.q7_spouse_serial_no) : null,
+        q8_nationality: cleanM.q8_nationality || 'भारत',
+        q9_religion: Number(cleanM.q9_religion) || 1,
+        q9_religion_other: cleanM.q9_religion_other || null,
+        q10a_sc_st: Number(cleanM.q10a_sc_st) || 3,
+        q10b_caste_code: cleanM.q10b_caste_code || null,
+        q10c_caste_name: cleanM.q10c_caste_name || null,
+        q11_father_in_hh: !!cleanM.q11_father_in_hh,
+        q11_father_serial_no: cleanM.q11_father_serial_no ? Number(cleanM.q11_father_serial_no) : null,
+        q11_father_name: cleanM.q11_father_name || null,
+        q11_father_dob: cleanM.q11_father_dob || null,
+        q11_father_birthplace: cleanM.q11_father_birthplace || null,
+        q11_father_alive: cleanM.q11_father_alive !== undefined ? !!cleanM.q11_father_alive : null,
+        q11_father_religion: cleanM.q11_father_religion ? Number(cleanM.q11_father_religion) : null,
+        q12_mother_in_hh: !!cleanM.q12_mother_in_hh,
+        q12_mother_serial_no: cleanM.q12_mother_serial_no ? Number(cleanM.q12_mother_serial_no) : null,
+        q12_mother_name: cleanM.q12_mother_name || null,
+        q12_mother_dob: cleanM.q12_mother_dob || null,
+        q12_mother_birthplace: cleanM.q12_mother_birthplace || null,
+        q12_mother_alive: cleanM.q12_mother_alive !== undefined ? !!cleanM.q12_mother_alive : null,
+        q12_mother_religion: cleanM.q12_mother_religion ? Number(cleanM.q12_mother_religion) : null,
+        q13a_disabled: Number(cleanM.q13a_disabled) || 2,
+        q13b_disability_types: Array.isArray(cleanM.q13b_disability_types) ? cleanM.q13b_disability_types.map(Number) : [],
+        q14a_mother_tongue: cleanM.q14a_mother_tongue || 'हिन्दी',
+        q14b_other_languages: Array.isArray(cleanM.q14b_other_languages) ? cleanM.q14b_other_languages : (cleanM.q14b_other_lang1 ? [cleanM.q14b_other_lang1, cleanM.q14c_other_lang2].filter(Boolean) : []),
+        q15a_literacy: cleanM.q15a_literacy ? Number(cleanM.q15a_literacy) : null,
+        q15b_digital_literate: cleanM.q15b_digital_literate ? Number(cleanM.q15b_digital_literate) : null,
+        q16_education_status: cleanM.q16_education_status ? Number(cleanM.q16_education_status) : null,
+        q17a_highest_education: cleanM.q17a_highest_education !== undefined ? Number(cleanM.q17a_highest_education) : null,
+        q17b_subject: cleanM.q17b_subject ? Number(cleanM.q17b_subject) : null,
+        q18_work_last_year: cleanM.q18_work_last_year ? Number(cleanM.q18_work_last_year) : 4,
+        q19_economic_activity: cleanM.q19_economic_activity ? Number(cleanM.q19_economic_activity) : null,
+        q20_occupation: cleanM.q20_occupation || null,
+        q21_industry: cleanM.q21_industry || null,
+        q22_worker_class: cleanM.q22_worker_class ? Number(cleanM.q22_worker_class) : null,
+        q23_non_economic_activity: cleanM.q23_non_economic_activity ? Number(cleanM.q23_non_economic_activity) : null,
+        q24_seeking_work: cleanM.q24_seeking_work ? Number(cleanM.q24_seeking_work) : null,
+        q25a_travel_distance_km: cleanM.q25a_travel_distance_km ? Number(cleanM.q25a_travel_distance_km) : null,
+        q25b_travel_time_min: cleanM.q25b_travel_time_min ? Number(cleanM.q25b_travel_time_min) : null,
+        q25c_travel_mode: cleanM.q25c_travel_mode !== undefined ? Number(cleanM.q25c_travel_mode) : null,
+        q26_birth_place_type: cleanM.q26_birth_place_type || 'here',
+        q26_birth_place_details: cleanM.q26_birth_place_details || [cleanM.q26_village, cleanM.q26_district, cleanM.q26_state, cleanM.q26_country].filter(Boolean).join(', ') || null,
+        q27_last_residence_type: cleanM.q27_last_residence_type || 'here',
+        q27_last_residence_details: cleanM.q27_last_residence_details || [cleanM.q27_village, cleanM.q27_district, cleanM.q27_state, cleanM.q27_country].filter(Boolean).join(', ') || null,
+        q27b_rural_urban: cleanM.q27b_rural_urban ? Number(cleanM.q27b_rural_urban) : 1,
+        q28_migration_reason: cleanM.q28_migration_reason ? Number(cleanM.q28_migration_reason) : null,
+        q29_residence_duration_years: cleanM.q29_residence_duration_years ? Number(cleanM.q29_residence_duration_years) : null,
+        q30_permanent_address_same: !!cleanM.q30_permanent_address_same,
+        q30_permanent_address: cleanM.q30_permanent_address || null,
+        q31_children_ever_born_female: Number(cleanM.q31_children_ever_born_female) || 0,
+        q31_children_ever_born_male: Number(cleanM.q31_children_ever_born_male) || 0,
+        q32_children_surviving_female: Number(cleanM.q32_children_surviving_female) || 0,
+        q32_children_surviving_male: Number(cleanM.q32_children_surviving_male) || 0,
+        q33_children_born_last_year_female: Number(cleanM.q33_children_born_last_year_female) || 0,
+        q33_children_born_last_year_male: Number(cleanM.q33_children_born_last_year_male) || 0,
+        q34a_covid_vaccinated: cleanM.q34a_covid_vaccinated ? Number(cleanM.q34a_covid_vaccinated) : null,
+        q34b_covid_vaccine_place: cleanM.q34b_covid_vaccine_place || null,
+        q35_bank_accounts_count: Number(cleanM.q35_bank_accounts_count) || 1,
+        q36_mobile_number: cleanM.q36_mobile_number || null,
+        q37_aadhaar_number: cleanM.q37_aadhaar_number || null,
+        q38_voter_id_epic: cleanM.q38_voter_id_epic || null,
+        q39_passport_number: cleanM.q39_passport_number || null,
+        q40_driving_license: cleanM.q40_driving_license ? Number(cleanM.q40_driving_license) : null
+      });
 
       const { success: mSuccess2, error: mError2 } = await safeUpsertMemberRecord(supabase, memberPayload);
 
       if (!mSuccess2) {
         console.error('अनाथ सदस्य अपलोड त्रुटि:', mError2);
-        errors.push(`अनाथ सदस्य ${m.q1_name}: ${mError2.message}`);
+        errors.push(`अनाथ सदस्य ${cleanM.q1_name || m.q1_name}: ${mError2.message}`);
       } else {
-        await db.members.update(m.local_id || memberLocalId, { sync_status: 'synced', local_id: memberLocalId });
+        await db.members.update(cleanM.local_id || memberLocalId, { sync_status: 'synced', local_id: memberLocalId });
         syncedMemCount++;
       }
     }
@@ -932,6 +1025,9 @@ export const syncPendingData = async () => {
   }
 
   try {
+    // 0. Auto-heal any dirty Unicode or null bytes stored in local Dexie database
+    await sanitizeAllLocalDexieRecords();
+
     // 1. Smart bidirectional settings & sections sync (reconciles timestamps, prevents overwrite, merges sections)
     const settingsSync = await syncSettingsBidirectional(supabase);
 

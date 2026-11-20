@@ -11,6 +11,9 @@
 export const sanitizeText = (input) => {
   if (typeof input !== 'string') return '';
   return input
+    .replace(/\0/g, '') // remove null byte U+0000
+    .replace(/\\u0000/gi, '') // remove literal \u0000
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '') // strip control chars
     .replace(/<[^>]*>/g, '') // remove HTML tags
     .replace(/[<>"'`]/g, '') // strip potential injection chars
     .replace(/\s+/g, ' ')   // normalize spaces
@@ -24,6 +27,9 @@ export const sanitizeText = (input) => {
 export const sanitizeName = (input) => {
   if (typeof input !== 'string') return '';
   return input
+    .replace(/\0/g, '') // remove null byte U+0000
+    .replace(/\\u0000/gi, '') // remove literal \u0000
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '') // strip control chars
     .replace(/[^A-Za-z\u0900-\u097F\s.]/g, '')
     .replace(/\s+/g, ' ')
     .trimStart();

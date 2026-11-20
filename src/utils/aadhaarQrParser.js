@@ -63,6 +63,16 @@ function bigIntToBytes(decStr) {
   return bytes;
 }
 
+// Helper to clean null bytes and control chars from decoded QR text
+const cleanQrText = (str) => {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/\0/g, '')
+    .replace(/\\u0000/gi, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+};
+
 /**
  * Parses Modern UIDAI Secure QR Code
  */
@@ -90,7 +100,7 @@ const parseSecureAadhaarQR = (bigIntString) => {
 
     for (let i = 0; i < decompressed.length; i++) {
       if (decompressed[i] === 0xFF) {
-        const text = decoder.decode(decompressed.slice(start, i)).trim();
+        const text = cleanQrText(decoder.decode(decompressed.slice(start, i)));
         parts.push(text);
         start = i + 1;
         // Text header is always within first 25 parts
@@ -186,15 +196,15 @@ const parseSecureAadhaarQR = (bigIntString) => {
     return {
       success: true,
       data: {
-        name: rawName,
+        name: cleanQrText(rawName),
         gender: genderCode,
         dob,
         age,
         aadhaarNumber: '', // Left empty for manual entry of 12 digits
         last4,
         maskedAadhaar,
-        address: finalAddress,
-        careOf,
+        address: cleanQrText(finalAddress),
+        careOf: cleanQrText(careOf),
         format: 'Secure Aadhaar QR'
       }
     };
@@ -245,15 +255,15 @@ const parseAadhaarXml = (xmlString) => {
     return {
       success: true,
       data: {
-        name,
+        name: cleanQrText(name),
         gender: genderCode,
         dob,
         age,
         aadhaarNumber,
         last4,
         maskedAadhaar: last4 ? `XXXX XXXX ${last4}` : '',
-        address,
-        careOf,
+        address: cleanQrText(address),
+        careOf: cleanQrText(careOf),
         format: 'XML'
       }
     };

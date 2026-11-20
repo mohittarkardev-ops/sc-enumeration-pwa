@@ -34,7 +34,7 @@ import {
 import MemberModal from './MemberModal';
 import QuickMemberModal from './QuickMemberModal';
 import { resolveFamilyRelationships, getMemberDropdownOptions, getPotentialFathers, getPotentialMothers } from '../utils/familyTreeResolver';
-import { syncPendingData } from '../db/supabase';
+import { syncPendingData, sanitizeForPostgres } from '../db/supabase';
 import { sanitizeAlphanumeric, sanitizeText } from '../utils/validation';
 
 const pad3 = (val) => {
@@ -416,7 +416,7 @@ export default function HouseholdEntry({
       updated_at: new Date().toISOString()
     };
 
-    await db.households.put(householdRecord);
+    await db.households.put(sanitizeForPostgres(householdRecord));
 
     if (currentLocalId) {
       await db.members.where('household_local_id').equals(currentLocalId).delete();
@@ -442,7 +442,7 @@ export default function HouseholdEntry({
         created_at: mem.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-      await db.members.put(memberRecord);
+      await db.members.put(sanitizeForPostgres(memberRecord));
     }
 
     // Auto-advance to next building & census house, resetting household to 001
