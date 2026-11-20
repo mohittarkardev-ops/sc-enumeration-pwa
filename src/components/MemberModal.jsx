@@ -144,6 +144,25 @@ export default function MemberModal({
   };
 
   const [formData, setFormData] = useState(initialData);
+  const [marriageYear, setMarriageYear] = useState('');
+
+  // Helper to determine birth year from DOB or Age
+  const getBirthYear = (data = formData) => {
+    if (data.q4a_dob && data.q4a_dob.length === 10) {
+      const parts = data.q4a_dob.split('/');
+      if (parts.length === 3 && parts[2].length === 4) {
+        const y = parseInt(parts[2], 10);
+        if (!isNaN(y) && y > 1900 && y <= new Date().getFullYear()) {
+          return y;
+        }
+      }
+    }
+    const ageNum = data.q4b_age !== '' && data.q4b_age !== undefined ? parseInt(data.q4b_age, 10) : NaN;
+    if (!isNaN(ageNum) && ageNum >= 0) {
+      return new Date().getFullYear() - ageNum;
+    }
+    return null;
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -164,7 +183,14 @@ export default function MemberModal({
           setIsAgeLocked(false);
         }
         setFormData(merged);
+        const bYear = getBirthYear(merged);
+        if (merged.q6_age_at_marriage && bYear) {
+          setMarriageYear(String(bYear + Number(merged.q6_age_at_marriage)));
+        } else {
+          setMarriageYear('');
+        }
       } else {
+        setMarriageYear('');
         const newData = { ...initialData, serial_no: serialNo };
         // Smart prefill for Member #2: ONLY if Head is actually married (status 2) and no spouse exists yet
         const headIsMarried = headMember && Number(headMember.q5_marital_status) === 2;
@@ -253,6 +279,46 @@ export default function MemberModal({
   const potentialFathers = getPotentialFathers(formData, householdMembers);
   const potentialMothers = getPotentialMothers(formData, householdMembers);
   const potentialSpouses = householdMembers.filter(m => m.serial_no !== formData.serial_no);
+  const birthYear = getBirthYear(formData);
+
+  const handleMarriageYearChange = (val) => {
+    const clean = sanitizeNumeric(val).slice(0, 4);
+    setMarriageYear(clean);
+
+    if (clean.length === 4) {
+      const mYear = parseInt(clean, 10);
+      const bYear = birthYear;
+      if (bYear && !isNaN(mYear)) {
+        const calculatedAgeAtMarriage = mYear - bYear;
+        if (calculatedAgeAtMarriage >= 0) {
+          setFormData((prev) => ({
+            ...prev,
+            q6_age_at_marriage: String(calculatedAgeAtMarriage)
+          }));
+          if (errors.q6_age_at_marriage) {
+            setErrors((prev) => ({ ...prev, q6_age_at_marriage: undefined }));
+          }
+        }
+      }
+    }
+  };
+
+  const handleAgeAtMarriageChange = (val) => {
+    const clean = sanitizeNumeric(val).slice(0, 3);
+    setFormData((prev) => ({ ...prev, q6_age_at_marriage: clean }));
+    if (errors.q6_age_at_marriage) {
+      setErrors((prev) => ({ ...prev, q6_age_at_marriage: undefined }));
+    }
+    const bYear = birthYear;
+    if (clean !== '' && bYear) {
+      const ageNum = parseInt(clean, 10);
+      if (!isNaN(ageNum) && ageNum >= 0) {
+        setMarriageYear(String(bYear + ageNum));
+      }
+    } else if (clean === '') {
+      setMarriageYear('');
+    }
+  };
 
   const handleNameChange = (val) => {
     const clean = sanitizeName(val);
@@ -331,6 +397,12 @@ export default function MemberModal({
         next.q5_marital_status = 1; // 1 - अविवाहित
         next.q6_age_at_marriage = '';
         next.q7_spouse_serial_no = '';
+      } else if (marriageYear && marriageYear.length === 4 && typeof num === 'number') {
+        const bYear = new Date().getFullYear() - num;
+        const calcAge = parseInt(marriageYear, 10) - bYear;
+        if (calcAge >= 0) {
+          next.q6_age_at_marriage = String(calcAge);
+        }
       }
       return next;
     });
@@ -354,6 +426,14 @@ export default function MemberModal({
             next.q5_marital_status = 1; // 1 - अविवाहित
             next.q6_age_at_marriage = '';
             next.q7_spouse_serial_no = '';
+          } else if (marriageYear && marriageYear.length === 4) {
+            const bYear = parseInt(res.formattedDob.split('/')[2], 10);
+            if (bYear) {
+              const calcAge = parseInt(marriageYear, 10) - bYear;
+              if (calcAge >= 0) {
+                next.q6_age_at_marriage = String(calcAge);
+              }
+            }
           }
           return next;
         });
@@ -889,21 +969,89 @@ export default function MemberModal({
                   </div>
 
                   <div className="space-y-3">
-                    {/* Q.6 विवाह के समय आयु */}
-                    <div>
-                      <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
-                        प्र. 6 विवाह के समय आयु (पूर्ण वर्षों में) <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.q6_age_at_marriage}
-                        onChange={(e) => setFormData({ ...formData, q6_age_at_marriage: sanitizeNumeric(e.target.value) })}
-                        placeholder="विवाह के समय आयु (उदा. 21)"
-                        className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base bg-white font-bold ${
-                          errors.q6_age_at_marriage ? 'border-red-500 bg-red-50' : 'border-slate-300'
-                        }`}
-                      />
+                    {/* Q.6 विवाह के समय आयु व विवाह वर्ष कैलकुलेटर */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/90 shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          प्र. 6 विवाह के समय आयु (पूर्ण वर्षों में) <span className="text-red-600">*</span>
+                        </label>
+                        <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-full">
+                          ⚡ वर्ष या उम्र कोई भी भरें
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {/* 1. विवाह के समय आयु (मुख्य फील्ड) */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            विवाह के समय आयु (वर्ष) <span className="text-red-600">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={3}
+                              value={formData.q6_age_at_marriage}
+                              onChange={(e) => handleAgeAtMarriageChange(e.target.value)}
+                              placeholder="उदा. 21"
+                              className={`w-full px-3.5 py-2 border rounded-xl text-sm sm:text-base bg-white font-bold font-mono ${
+                                errors.q6_age_at_marriage ? 'border-red-500 bg-red-50' : 'border-slate-300'
+                              }`}
+                            />
+                            <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold pointer-events-none">
+                              वर्ष
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 2. विवाह का वर्ष (ऑटो-कैलकुलेटर) */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold text-[#0B3B60]">
+                              अथवा विवाह का वर्ष (YYYY)
+                            </label>
+                            {birthYear && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                (जन्म: ~{birthYear})
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              value={marriageYear}
+                              onChange={(e) => handleMarriageYearChange(e.target.value)}
+                              placeholder="उदा. 2011"
+                              className="w-full px-3.5 py-2 border border-blue-200 bg-blue-50/40 rounded-xl text-sm sm:text-base font-bold font-mono text-slate-900 focus:bg-white focus:border-[#0B3B60]"
+                            />
+                            <span className="absolute right-3 top-2.5 text-xs text-blue-600 font-bold pointer-events-none">
+                              साल
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Helper Messages */}
+                      {marriageYear && birthYear && formData.q6_age_at_marriage ? (
+                        <p className="text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            वर्ष {marriageYear} के अनुसार विवाह आयु स्वतः <strong>{formData.q6_age_at_marriage} वर्ष</strong> ({marriageYear} - {birthYear}) दर्ज हुई।
+                          </span>
+                        </p>
+                      ) : marriageYear && !birthYear ? (
+                        <p className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>विवाह आयु की गणना हेतु पहले जन्म तिथि या पूर्ण आयु (प्र. 4) दर्ज करें।</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">
+                          नोट: यदि व्यक्ति केवल शादी का साल (जैसे 2011) बताए, तो साल डालें—उम्र जन्म तिथि अनुसार स्वतः भर जाएगी।
+                        </p>
+                      )}
+
                       {errors.q6_age_at_marriage && (
                         <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
                           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
