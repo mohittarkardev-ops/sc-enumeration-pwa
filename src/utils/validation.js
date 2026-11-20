@@ -289,8 +289,8 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
         if (father) {
           if (Number(father.q3_gender) !== 1) {
             errors.q11_father_serial_no = 'पिता का लिंग केवल पुरुष (1) होना चाहिए';
-          } else if (father.q4b_age && member.q4b_age && Number(father.q4b_age) < Number(member.q4b_age) + 15) {
-            errors.q11_father_serial_no = `पिता की आयु (${father.q4b_age}) संतान (${member.q4b_age}) से कम से कम 15 वर्ष अधिक होनी चाहिए`;
+          } else if (father.q4b_age && member.q4b_age && Number(father.q4b_age) < Number(member.q4b_age)) {
+            errors.q11_father_serial_no = `पिता की आयु (${father.q4b_age}) संतान (${member.q4b_age}) से कम नहीं हो सकती`;
           } else if ((Number(member.q2_relationship) === 1 || Number(member.q2_relationship) === 13) && Number(father.q2_relationship) !== 12) {
             errors.q11_father_serial_no = 'मुखिया या भाई/बहन के पिता केवल "माता/पिता (12)" कोड वाले बुजुर्ग सदस्य हो सकते हैं (छोटा/बड़ा भाई या अन्य नहीं)';
           } else if (Number(member.q2_relationship) === 3 && Number(father.q2_relationship) === 3) {
@@ -313,8 +313,8 @@ export const validateMemberRecord = (member, existingMembers = [], currentIndex 
         if (mother) {
           if (Number(mother.q3_gender) !== 2) {
             errors.q12_mother_serial_no = 'माता का लिंग केवल महिला (2) होना चाहिए';
-          } else if (mother.q4b_age && member.q4b_age && Number(mother.q4b_age) < Number(member.q4b_age) + 15) {
-            errors.q12_mother_serial_no = `माता की आयु (${mother.q4b_age}) संतान (${member.q4b_age}) से कम से कम 15 वर्ष अधिक होनी चाहिए`;
+          } else if (mother.q4b_age && member.q4b_age && Number(mother.q4b_age) < Number(member.q4b_age)) {
+            errors.q12_mother_serial_no = `माता की आयु (${mother.q4b_age}) संतान (${member.q4b_age}) से कम नहीं हो सकती`;
           } else if ((Number(member.q2_relationship) === 1 || Number(member.q2_relationship) === 13) && Number(mother.q2_relationship) !== 12) {
             errors.q12_mother_serial_no = 'मुखिया या भाई/बहन की माता केवल "माता/पिता (12)" कोड वाली बुजुर्ग सदस्य हो सकती हैं';
           } else if (Number(member.q2_relationship) === 3 && Number(mother.q2_relationship) === 3) {

@@ -437,6 +437,73 @@ export default function MemberModal({
     });
   };
 
+  // 1-Tap Copy Father's Birthplace (Q.11) to Member's Birthplace (Q.26) & Last Residence (Q.27)
+  const handleApplyFatherBirthplaceToQ26 = () => {
+    const fVillage = formData.q11_father_birth_village || '';
+    const fDistrict = formData.q11_father_birth_district || formData.q26_birth_district || 'मथुरा (Mathura)';
+    const fState = formData.q11_father_birth_state || formData.q26_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)';
+    const details = formatBirthplace(fState, fDistrict, fVillage);
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        q26_birth_place_type: 'india',
+        q26_birth_state: fState,
+        q26_birth_district: fDistrict,
+        q26_birth_village: fVillage,
+        q26_birth_place_details: details
+      };
+
+      if (syncBirthToResidence || isBahu) {
+        next.q27_last_residence_type = prev.q27_last_residence_type === 'here' ? 'rural' : prev.q27_last_residence_type;
+        next.q27_last_residence_state = fState;
+        next.q27_last_residence_district = fDistrict;
+        next.q27_last_residence_village = fVillage;
+        next.q27_last_residence_details = details;
+        next.q27b_rural_urban = prev.q27b_rural_urban || 1;
+        if (isBahu || isMarriedFemale) {
+          if (!next.q28_migration_reason) next.q28_migration_reason = 4; // विवाह
+          const computedDur = getCalculatedResidenceDuration(next, marriageYear);
+          if (computedDur !== null) {
+            next.q29_residence_duration_years = String(computedDur);
+          }
+        }
+      }
+      return next;
+    });
+
+    if (fVillage) saveRecentVillage(fVillage);
+  };
+
+  const handleApplyFatherBirthplaceToQ27 = () => {
+    const fVillage = formData.q11_father_birth_village || '';
+    const fDistrict = formData.q11_father_birth_district || formData.q27_last_residence_district || 'मथुरा (Mathura)';
+    const fState = formData.q11_father_birth_state || formData.q27_last_residence_state || 'उत्तर प्रदेश (Uttar Pradesh)';
+    const details = formatBirthplace(fState, fDistrict, fVillage);
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        q27_last_residence_type: prev.q27_last_residence_type === 'here' ? 'rural' : prev.q27_last_residence_type,
+        q27_last_residence_state: fState,
+        q27_last_residence_district: fDistrict,
+        q27_last_residence_village: fVillage,
+        q27_last_residence_details: details,
+        q27b_rural_urban: prev.q27b_rural_urban || 1
+      };
+      if (isBahu || isMarriedFemale) {
+        if (!next.q28_migration_reason) next.q28_migration_reason = 4;
+        const computedDur = getCalculatedResidenceDuration(next, marriageYear);
+        if (computedDur !== null) {
+          next.q29_residence_duration_years = String(computedDur);
+        }
+      }
+      return next;
+    });
+
+    if (fVillage) saveRecentVillage(fVillage);
+  };
+
   // Census Classification Flags (Strict Flowchart Compliance)
   const workCategory = Number(formData.q18_work_last_year); // 1 = Main, 2 = Marginal (3-6m), 3 = Marginal (<3m), 4 = Non-worker
   const isMainWorker = workCategory === 1;
@@ -1679,7 +1746,7 @@ export default function MemberModal({
                         <div className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-bold">परिवार में कोई योग्य पिता (आयु में 15+ वर्ष बड़े व नियमानुसार) उपस्थित नहीं हैं।</p>
+                            <p className="font-bold">परिवार में कोई योग्य पिता (नियमानुसार) उपस्थित नहीं हैं।</p>
                             <p className="text-[11px] text-slate-600 mt-0.5">
                               (मुखिया या भाई के पिता केवल 'माता/पिता (12)' हो सकते हैं; छोटा भाई या बेटा पिता नहीं हो सकता)।
                             </p>
@@ -1976,7 +2043,7 @@ export default function MemberModal({
                         <div className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-bold">परिवार में कोई योग्य माता (आयु में 15+ वर्ष बड़ी व नियमानुसार) उपस्थित नहीं हैं।</p>
+                            <p className="font-bold">परिवार में कोई योग्य माता (नियमानुसार) उपस्थित नहीं हैं।</p>
                             <p className="text-[11px] text-slate-600 mt-0.5">
                               (मुखिया या बहन की माता केवल 'माता/पिता (12)' हो सकती हैं; छोटी बहन या बेटी माता नहीं हो सकती)।
                             </p>
@@ -3066,6 +3133,30 @@ export default function MemberModal({
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">
                   प्र. 26 जन्म स्थान (राज्य / जिला / गाँव)
                 </label>
+
+                {/* पिता का जन्म स्थान (मायका) 1-टैप सजेशन बैनर */}
+                {(formData.q11_father_birth_village || formData.q11_father_birthplace) && (
+                  <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 p-2.5 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>पिता का जन्म स्थान (मायका) से 1-टैप भरें</span>
+                      </p>
+                      <p className="text-[11px] text-purple-700 truncate mt-0.5 font-medium">
+                        {formData.q11_father_birth_village ? `${formData.q11_father_birth_village}, ` : ''}
+                        {formData.q11_father_birth_district || ''} ({formData.q11_father_birth_state || 'उत्तर प्रदेश'})
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApplyFatherBirthplaceToQ26}
+                      className="px-2.5 py-1.5 bg-purple-700 hover:bg-purple-800 active:scale-95 text-white rounded-lg text-xs font-bold shrink-0 shadow-xs transition-all"
+                    >
+                      लागू करें ✓
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
                     { code: 'here', label: '1 - इसी गांव में (गणना स्थल)' },
@@ -3254,6 +3345,30 @@ export default function MemberModal({
                       type="button"
                       onClick={handleCopyBirthplaceToLastResidence}
                       className="px-2.5 py-1.5 bg-[#0B3B60] hover:bg-[#072F5F] text-white rounded-lg text-xs font-bold shrink-0 shadow-xs active:scale-95 transition-all"
+                    >
+                      1-टैप सेट करें ✓
+                    </button>
+                  </div>
+                )}
+
+                {/* 1-टैप पिता का जन्म स्थान (मायका) ➔ पूर्व निवास कॉपी बैनर */}
+                {(formData.q11_father_birth_village || formData.q11_father_birthplace) && (
+                  <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 p-2.5 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>पिता का गाँव ही पूर्व निवास (मायका प्रवास)</span>
+                      </p>
+                      <p className="text-[11px] text-purple-700 truncate mt-0.5 font-medium">
+                        {formData.q11_father_birth_village ? `${formData.q11_father_birth_village}, ` : ''}
+                        {formData.q11_father_birth_district || ''} ({formData.q11_father_birth_state || 'उत्तर प्रदेश'})
+                        {durationSinceMarriage !== '' ? ` • कारण: विवाह (4) • अवधि: ${durationSinceMarriage} वर्ष` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApplyFatherBirthplaceToQ27}
+                      className="px-2.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold shrink-0 shadow-xs active:scale-95 transition-all"
                     >
                       1-टैप सेट करें ✓
                     </button>
