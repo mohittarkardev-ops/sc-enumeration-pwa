@@ -30,6 +30,7 @@ export default function LocationSettingsModal({ isOpen, onClose, onSettingsUpdat
     enumeration_block_no: '001',
     enumerator_name: '',
     enumerator_id: 'ENUM-001',
+    register_share_slug: 'panjika-mathura',
     sections: [
       { id: '1', name: 'सेक्शन 1' },
       { id: '2', name: 'सेक्शन 2' },
@@ -147,6 +148,10 @@ export default function LocationSettingsModal({ isOpen, onClose, onSettingsUpdat
       enumeration_block_no: sanitizeAlphanumeric(formData.enumeration_block_no),
       enumerator_name: sanitizeText(formData.enumerator_name),
       enumerator_id: sanitizeAlphanumeric(formData.enumerator_id),
+      register_share_slug: (formData.register_share_slug || 'panjika-mathura')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '-'),
       id: 'active_settings',
       updated_at: new Date().toISOString()
     };
@@ -430,6 +435,23 @@ export default function LocationSettingsModal({ isOpen, onClose, onSettingsUpdat
                   placeholder="ENUM-001"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 bg-white text-sm"
                 />
+              </div>
+
+              <div className="sm:col-span-2 pt-1 border-t border-slate-200">
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  परिवार पंजिका शेयर स्लग (Panjika Share Slug / Token)
+                </label>
+                <input
+                  type="text"
+                  name="register_share_slug"
+                  value={formData.register_share_slug || 'panjika-mathura'}
+                  onChange={handleChange}
+                  placeholder="panjika-mathura"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono text-xs font-bold text-slate-900 bg-white"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  इस कोड/स्लग द्वारा उच्चाधिकारी पूरी परिवार पंजिका को केवल सुरक्षित पठन मोड (Read-Only) में देख सकेंगे।
+                </p>
               </div>
             </div>
           </div>

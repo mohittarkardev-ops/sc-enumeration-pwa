@@ -31,6 +31,7 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
   const [isPulling, setIsPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState('');
   const [sectionFilter, setSectionFilter] = useState(activeSection || 'all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'completed', 'draft'
   const [sectionsList, setSectionsList] = useState([]);
   const [selectedProformaHh, setSelectedProformaHh] = useState(null);
   const [selectedProformaMembers, setSelectedProformaMembers] = useState([]);
@@ -151,8 +152,15 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
     return false;
   };
 
+  // Status counts across currently selected section
+  const sectionHouseholds = allHouseholds.filter((h) => matchesSection(h, sectionFilter));
+  const completedCount = sectionHouseholds.filter((h) => h.status === 'completed' || !h.status).length;
+  const draftCount = sectionHouseholds.filter((h) => h.status === 'draft').length;
+
   const filteredHouseholds = allHouseholds.filter((h) => {
     if (!matchesSection(h, sectionFilter)) return false;
+    if (statusFilter === 'completed' && h.status !== 'completed' && h.status) return false;
+    if (statusFilter === 'draft' && h.status !== 'draft') return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -189,8 +197,14 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
               <FolderOpen className="w-4 h-4 text-[#0B3B60]" />
               <span>परिवार पंजिका (Household Roster)</span>
             </h2>
-            <div className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-              दर्ज परिवार: <strong className="text-slate-900 font-bold">{filteredHouseholds.length}</strong> (कुल {allHouseholds.length}) | सदस्य: <strong className="text-slate-900 font-bold">{members.length}</strong>
+            <div className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>दिख रहे: <strong className="text-slate-900 font-bold">{filteredHouseholds.length}</strong></span>
+              <span className="text-slate-300">|</span>
+              <span className="text-emerald-700 font-bold">✓ पूर्ण: {completedCount}</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-amber-700 font-bold">✎ ड्राफ्ट: {draftCount}</span>
+              <span className="text-slate-300">|</span>
+              <span>सदस्य: <strong className="text-slate-900 font-bold">{members.length}</strong></span>
             </div>
           </div>
 
@@ -231,6 +245,48 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
               <span>प्रपत्र PDF</span>
             </button>
           </div>
+        </div>
+
+        {/* Status Filter Toggle Pills: All / Completed / Draft */}
+        <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200/80">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide shrink-0 px-1">
+            प्रपत्र स्थिति:
+          </span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+              statusFilter === 'all'
+                ? 'bg-[#0B3B60] text-white shadow-xs font-black'
+                : 'text-slate-700 hover:bg-slate-200/60'
+            }`}
+          >
+            सभी ({sectionHouseholds.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('completed')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+              statusFilter === 'completed'
+                ? 'bg-emerald-700 text-white shadow-xs font-black'
+                : 'text-emerald-800 hover:bg-emerald-100/50'
+            }`}
+          >
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+            <span>पूर्ण ({completedCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('draft')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+              statusFilter === 'draft'
+                ? 'bg-amber-600 text-white shadow-xs font-black'
+                : 'text-amber-900 hover:bg-amber-100/50'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            <span>ड्राफ्ट ({draftCount})</span>
+          </button>
         </div>
 
         {/* Section Filter Pills with Family Counts */}
@@ -333,58 +389,100 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
           {filteredHouseholds.map((h) => {
             const isExpanded = expandedHhId === h.local_id;
             const hhMembers = members.filter((m) => m.household_local_id === h.local_id);
+            const isDraft = h.status === 'draft';
+            const isCompleted = h.status === 'completed' || !h.status;
+            const isSelfEnumerated = h.status === 'self_enumerated';
 
             return (
               <div
                 key={h.local_id}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all"
+                className={`rounded-xl border shadow-xs overflow-hidden transition-all ${
+                  isDraft
+                    ? 'bg-amber-50/25 border-amber-300 border-l-[6px] border-l-amber-500'
+                    : isSelfEnumerated
+                    ? 'bg-purple-50/25 border-purple-300 border-l-[6px] border-l-purple-500'
+                    : 'bg-white border-emerald-200 border-l-[6px] border-l-emerald-600'
+                }`}
               >
                 {/* Main Summary Row */}
                 <div
                   onClick={() => setExpandedHhId(isExpanded ? null : h.local_id)}
-                  className="p-3.5 sm:p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors gap-2"
+                  className={`p-3.5 sm:p-4 flex items-center justify-between cursor-pointer transition-colors gap-2 ${
+                    isDraft
+                      ? 'hover:bg-amber-100/30'
+                      : isSelfEnumerated
+                      ? 'hover:bg-purple-100/30'
+                      : 'hover:bg-emerald-50/20'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-12 px-1.5 rounded-xl border border-blue-200 bg-blue-50 flex flex-col items-center justify-center shrink-0 shadow-inner">
-                      <span className="text-[9px] text-[#0B3B60] font-black uppercase leading-none tracking-tight">भ·{String(h.building_no).padStart(3,'0')} म·{String(h.census_house_no).padStart(3,'0')}</span>
-                      <span className="text-sm font-black text-[#0B3B60] leading-none mt-0.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Distinct Number Box */}
+                    <div className={`w-16 h-12 px-1.5 rounded-xl border flex flex-col items-center justify-center shrink-0 shadow-inner ${
+                      isDraft
+                        ? 'border-amber-300 bg-amber-100/80 text-amber-950'
+                        : isSelfEnumerated
+                        ? 'border-purple-300 bg-purple-100/80 text-purple-950'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                    }`}>
+                      <span className="text-[9px] font-black uppercase leading-none tracking-tight opacity-80">
+                        भ·{String(h.building_no).padStart(3,'0')} म·{String(h.census_house_no).padStart(3,'0')}
+                      </span>
+                      <span className="text-sm font-black leading-none mt-0.5">
                         प·{String(h.household_no).padStart(3,'0')}
                       </span>
                     </div>
 
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-base sm:text-lg text-slate-900 leading-tight">
                           {h.head_name || 'अज्ञात मुखिया'}
                         </span>
+
+                        {/* Status Badge: Distinct Completed vs Draft */}
+                        {isDraft ? (
+                          <span className="flex items-center gap-1 text-[10.5px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md font-black shadow-2xs">
+                            <Clock className="w-3 h-3 text-amber-700" />
+                            <span>✎ ड्राफ्ट (अधूरा)</span>
+                          </span>
+                        ) : isSelfEnumerated ? (
+                          <span className="flex items-center gap-1 text-[10.5px] bg-purple-100 text-purple-900 border border-purple-300 px-2 py-0.5 rounded-md font-black shadow-2xs">
+                            <span>⚡ स्व-गणना</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10.5px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md font-black shadow-2xs">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" />
+                            <span>✓ पूर्ण प्रपत्र</span>
+                          </span>
+                        )}
+
                         {(() => {
                           const secObj = sectionsList.find((s) => s.id === String(h.village_section) || s.name === String(h.village_section));
                           const secDisplayName = secObj ? secObj.name : (String(h.village_section).startsWith('सेक्शन') ? h.village_section : `सेक्शन ${h.village_section}`);
                           return (
-                            <span className="text-[11px] bg-blue-50 text-[#0B3B60] font-bold px-2 py-0.5 rounded border border-blue-200">
+                            <span className="text-[10.5px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.5 rounded border border-slate-200">
                               {secDisplayName}
                             </span>
                           );
                         })()}
                       </div>
 
-                      <div className="text-xs sm:text-sm text-slate-600 font-medium">
-                        भवन सं.: <strong className="text-slate-800">{h.building_no}</strong> | मकान सं.: <strong className="text-slate-800">{h.census_house_no}</strong> | सदस्य: <strong className="text-[#0B3B60] font-bold">{hhMembers.length || h.total_members}</strong>
+                      <div className="text-xs text-slate-600 font-medium">
+                        भवन सं.: <strong className="text-slate-800">{h.building_no}</strong> | मकान सं.: <strong className="text-slate-800">{h.census_house_no}</strong> | सदस्य: <strong className={isDraft ? 'text-amber-800 font-black' : 'text-emerald-700 font-black'}>{hhMembers.length || h.total_members}</strong>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Status Pill */}
                     <div className="hidden xs:flex items-center">
                       {h.sync_status === 'synced' ? (
-                        <span className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg font-bold">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>क्लाउड सुरक्षित</span>
+                        <span className="flex items-center gap-1 text-[10.5px] text-emerald-700 bg-white border border-emerald-200 px-2 py-1 rounded-lg font-bold" title="क्लाउड सुरक्षित">
+                          <CheckCircle className="w-3 h-3 text-emerald-600" />
+                          <span>क्लाउड</span>
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-bold">
-                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="flex items-center gap-1 text-[10.5px] text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded-lg font-bold" title="लोकल">
+                          <Clock className="w-3 h-3 text-slate-400" />
                           <span>लोकल</span>
                         </span>
                       )}

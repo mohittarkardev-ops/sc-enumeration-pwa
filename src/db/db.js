@@ -30,19 +30,30 @@ export const initDefaultSettings = async () => {
       ],
       last_building_no: '001',
       last_census_house_no: '001',
-      last_household_no: '001'
+      last_household_no: '001',
+      register_share_slug: 'panjika-mathura'
     };
     await db.settings.put(defaultSettings);
     return defaultSettings;
   }
 
-  // Ensure sections array exists for legacy records
+  // Ensure sections array & register_share_slug exist for legacy records
+  let needsUpdate = false;
   if (!current.sections || !Array.isArray(current.sections) || current.sections.length === 0) {
     current.sections = [
       { id: '1', name: 'सेक्शन 1' },
       { id: '2', name: 'सेक्शन 2' },
       { id: '3', name: 'सेक्शन 3' }
     ];
+    needsUpdate = true;
+  }
+
+  if (!current.register_share_slug) {
+    current.register_share_slug = 'panjika-mathura';
+    needsUpdate = true;
+  }
+
+  if (needsUpdate) {
     await db.settings.put(current);
   }
 

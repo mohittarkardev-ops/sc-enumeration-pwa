@@ -13,7 +13,13 @@ import {
   Home,
   CheckCircle2,
   Clock,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Share2,
+  Copy,
+  Check,
+  Lock,
+  ExternalLink
 } from 'lucide-react';
 import { db } from '../db/db';
 import {
@@ -725,7 +731,7 @@ function HouseholdProformaSheet({
  * Main RegisterBookView: Standalone Page for `/panjika` slug
  * ══════════════════════════════════════════════════════════════════════
  */
-export default function RegisterBookView({ settings, onBack }) {
+export default function RegisterBookView({ settings, onBack, isReadOnly = false }) {
   const [households, setHouseholds] = useState([]);
   const [membersMap, setMembersMap] = useState({});
   const [sectionsList, setSectionsList] = useState([]);
@@ -737,6 +743,58 @@ export default function RegisterBookView({ settings, onBack }) {
   const [viewSide, setViewSide] = useState('BOTH'); // 'A', 'B', or 'BOTH'
   const [viewMode, setViewMode] = useState('all'); // 'all' (continuous scroll) or 'book' (single family book)
   const [activeBookIndex, setActiveBookIndex] = useState(0);
+
+  // Secure Share Link Modal states
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [shareSlug, setShareSlug] = useState(settings?.register_share_slug || 'panjika-mathura');
+  const [isSavingSlug, setIsSavingSlug] = useState(false);
+  const [slugSavedMsg, setSlugSavedMsg] = useState('');
+
+  useEffect(() => {
+    if (settings?.register_share_slug) {
+      setShareSlug(settings.register_share_slug);
+    }
+  }, [settings?.register_share_slug]);
+
+  const getShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}${window.location.pathname}#/panjika?token=${shareSlug}`;
+  };
+
+  const handleCopyShareLink = () => {
+    const url = getShareUrl();
+    if (navigator.clipboard && url) {
+      navigator.clipboard.writeText(url);
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 2500);
+    }
+  };
+
+  const handleSaveSlug = async () => {
+    const cleaned = (shareSlug || 'panjika-mathura')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-');
+    setIsSavingSlug(true);
+    try {
+      const activeSettings = (await db.settings.get('active_settings')) || {};
+      const updated = {
+        ...activeSettings,
+        id: 'active_settings',
+        register_share_slug: cleaned,
+        updated_at: new Date().toISOString()
+      };
+      await db.settings.put(updated);
+      setShareSlug(cleaned);
+      setSlugSavedMsg('सुरक्षा स्लग सफलतापूर्वक अपडेट किया गया! ✓');
+      setTimeout(() => setSlugSavedMsg(''), 3000);
+    } catch (err) {
+      console.error('Failed to save register slug:', err);
+    } finally {
+      setIsSavingSlug(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -826,16 +884,25 @@ export default function RegisterBookView({ settings, onBack }) {
       {/* ── DEDICATED STANDALONE PANJIKA TOP BAR (Hidden during Print) ── */}
       <header className="sticky top-0 z-40 bg-[#0B3B60] text-white shadow-xl print:hidden border-b-2 border-amber-400">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-          {/* Brand & Back Button */}
+          {/* Brand & Back Button / Read-Only Badge */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs sm:text-sm transition-all border border-white/20 active:scale-95"
-              title="मुख्य ऐप पर वापस जाएँ"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>ऐप पर लौटें</span>
-            </button>
+            {isReadOnly ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 font-extrabold text-xs sm:text-sm border border-emerald-400/40 shadow-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>अधिकृत पठन मोड (Read-Only)</span>
+              </div>
+            ) : (
+              onBack && (
+                <button
+                  onClick={onBack}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs sm:text-sm transition-all border border-white/20 active:scale-95"
+                  title="मुख्य ऐप पर वापस जाएँ"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>ऐप पर लौटें</span>
+                </button>
+              )
+            )}
 
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-amber-300 shrink-0" />
@@ -942,6 +1009,19 @@ export default function RegisterBookView({ settings, onBack }) {
               </button>
             </div>
 
+            {/* Share Read-Only Link (Only for Unlocked Enumerator) */}
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 border border-amber-300"
+                title="सुरक्षित शेयर लिंक (Share Read-Only Register)"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>शेयर लिंक</span>
+              </button>
+            )}
+
             {/* Print Official Schedule */}
             <button
               onClick={handlePrint}
@@ -996,12 +1076,28 @@ export default function RegisterBookView({ settings, onBack }) {
             <BookOpen className="w-14 h-14 mx-auto mb-3 text-slate-400" />
             <h2 className="text-lg font-black text-slate-900">कोई प्रपत्र नहीं मिला</h2>
             <p className="text-sm text-slate-500 mt-1">खोज शब्द बदलें अथवा मुख्य ऐप से नया परिवार दर्ज करें।</p>
-            <button
-              onClick={onBack}
-              className="mt-4 px-4 py-2 bg-[#0B3B60] text-white rounded-xl text-xs font-bold hover:bg-[#072F5F]"
-            >
-              ऐप पर वापस जाएँ
-            </button>
+            {isReadOnly ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedSection('all');
+                }}
+                className="mt-4 px-4 py-2 bg-[#0B3B60] text-white rounded-xl text-xs font-bold hover:bg-[#072F5F]"
+              >
+                फ़िल्टर साफ़ करें
+              </button>
+            ) : (
+              onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="mt-4 px-4 py-2 bg-[#0B3B60] text-white rounded-xl text-xs font-bold hover:bg-[#072F5F]"
+                >
+                  ऐप पर वापस जाएँ
+                </button>
+              )
+            )}
           </div>
         ) : viewMode === 'book' ? (
           /* Book Mode: Show current single family */
@@ -1083,6 +1179,134 @@ export default function RegisterBookView({ settings, onBack }) {
           </div>
         )}
       </main>
+
+      {/* ── SECURE SHARE REGISTER MODAL ── */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-[#0B3B60] text-white p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-400 text-slate-950 rounded-xl">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black leading-tight">
+                    परिवार पंजिका सुरक्षित शेयर लिंक
+                  </h3>
+                  <p className="text-xs text-sky-200 mt-0.5">
+                    केवल पठन मोड (Read-Only) • डेटा सुरक्षित
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-4 text-slate-800">
+              {/* Notice */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-extrabold text-emerald-950 block">सुरक्षित दृश्य गारंटी:</span>
+                  <p className="text-[11.5px] leading-relaxed text-emerald-800">
+                    इस लिंक से कोई भी अधिकारी या दर्शक पूरी परिवार पंजिका <strong>केवल देख व प्रिंट</strong> कर सकेंगे। वे मुख्य ऐप, नया परिवार फॉर्म या कोई भी संपादन (Edit) नहीं कर सकते।
+                  </p>
+                </div>
+              </div>
+
+              {/* Shareable URL Box */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  शेयर करने हेतु सीधा वेब लिंक:
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={getShareUrl()}
+                    className="flex-1 px-3 py-2.5 bg-slate-100 border border-slate-300 rounded-xl font-mono text-xs text-slate-800 select-all focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyShareLink}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all shadow-xs ${
+                      copiedShare
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[#0B3B60] hover:bg-[#072F5F] text-white active:scale-95'
+                    }`}
+                  >
+                    {copiedShare ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>कॉपी हो गया!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>लिंक कॉपी करें</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Slug Customization */}
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-[#0B3B60]" />
+                    <span>पंजिका सुरक्षा कोड (Security Slug / Token):</span>
+                  </label>
+                  {slugSavedMsg && (
+                    <span className="text-[11px] font-bold text-emerald-600 animate-in fade-in">
+                      {slugSavedMsg}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={shareSlug}
+                    onChange={(e) => setShareSlug(e.target.value)}
+                    placeholder="उदा. panjika-mathura"
+                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveSlug}
+                    disabled={isSavingSlug}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shrink-0 active:scale-95 transition-all"
+                  >
+                    {isSavingSlug ? 'सहेज रहे हैं...' : 'स्लग बदलें'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  यदि आप यह स्लग बदलते हैं, तो पुराना लिंक अप्रभावी हो जाएगा और केवल नए स्लग वाला लिंक काम करेगा।
+                </p>
+              </div>
+
+              {/* Close Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all"
+                >
+                  बंद करें
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Print Specific CSS (Guaranteed Landscape on A4) ── */}
       <style>{`

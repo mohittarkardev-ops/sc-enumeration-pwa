@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import LockScreen, { APP_ACCESS_CODE_KEY } from './components/LockScreen';
+import RegisterSlugLockScreen from './components/RegisterSlugLockScreen';
 import Header from './components/Header';
 import HouseholdEntry from './components/HouseholdEntry';
 import HouseholdListView from './components/HouseholdListView';
@@ -7,6 +8,28 @@ import RegisterBookView from './components/RegisterBookView';
 import LocationSettingsModal from './components/LocationSettingsModal';
 import { db, initDefaultSettings } from './db/db';
 import { syncPendingData } from './db/supabase';
+
+const parsePanjikaUrl = () => {
+  if (typeof window === 'undefined') return { isPanjika: false, token: null };
+  const p = window.location.pathname;
+  const h = window.location.hash || '';
+  const isPanjika =
+    p === '/panjika' ||
+    p.startsWith('/panjika') ||
+    h === '#/panjika' ||
+    h.startsWith('#/panjika');
+
+  let token = null;
+  if (window.location.search) {
+    const sParams = new URLSearchParams(window.location.search);
+    token = sParams.get('token') || sParams.get('slug');
+  }
+  if (!token && h.includes('?')) {
+    const hParams = new URLSearchParams(h.split('?')[1]);
+    token = hParams.get('token') || hParams.get('slug');
+  }
+  return { isPanjika, token };
+};
 
 export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(() => {
@@ -22,24 +45,16 @@ export default function App() {
   const [settings, setSettings] = useState(null);
 
   // Standalone slug routing for /panjika
-  const [currentPath, setCurrentPath] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const p = window.location.pathname;
-      const h = window.location.hash;
-      if (p === '/panjika' || h === '#/panjika') return '/panjika';
-    }
-    return '/';
+  const [panjikaInfo, setPanjikaInfo] = useState(parsePanjikaUrl);
+  const [slugUnlockedInSession, setSlugUnlockedInSession] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('PANJIKA_SLUG_UNLOCKED') === 'true';
   });
+  const [showMasterPinPrompt, setShowMasterPinPrompt] = useState(false);
 
   useEffect(() => {
     const handleLocationChange = () => {
-      const p = window.location.pathname;
-      const h = window.location.hash;
-      if (p === '/panjika' || h === '#/panjika') {
-        setCurrentPath('/panjika');
-      } else {
-        setCurrentPath('/');
-      }
+      setPanjikaInfo(parsePanjikaUrl());
     };
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('hashchange', handleLocationChange);
@@ -53,7 +68,7 @@ export default function App() {
     if (typeof window !== 'undefined') {
       window.history.pushState({}, '', path);
     }
-    setCurrentPath(path);
+    setPanjikaInfo(parsePanjikaUrl());
   };
 
   // Household editing state
@@ -141,18 +156,59 @@ export default function App() {
     setActiveView('list');
   };
 
-  if (!isUnlocked) {
-    return <LockScreen onUnlock={() => setIsUnlocked(true)} />;
-  }
+  const configuredSlug = (settings?.register_share_slug || 'panjika-mathura').trim().toLowerCase();
+  const isTokenMatch =
+    panjikaInfo.token && panjikaInfo.token.trim().toLowerCase() === configuredSlug;
+  const isSlugAuthorized = isTokenMatch || slugUnlockedInSession;
 
-  // ── Standalone Panjika View (Slug: /panjika) — Completely Independent Header ──
-  if (currentPath === '/panjika') {
+  // ── 1. Standalone Panjika Routing Branch (Slug: /panjika or #/panjika) ──
+  if (panjikaInfo.isPanjika) {
+    // Case A: Accessed with authorized token or slug unlocked in session -> Read-Only Panjika
+    if (isSlugAuthorized) {
+      return (
+        <RegisterBookView
+          settings={settings}
+          isReadOnly={true}
+        />
+      );
+    }
+
+    // Case B: Master enumerator is already unlocked -> Full Panjika with Back button & Share modal
+    if (isUnlocked) {
+      return (
+        <RegisterBookView
+          settings={settings}
+          isReadOnly={false}
+          onBack={() => navigateTo('/')}
+        />
+      );
+    }
+
+    // Case C: Visitor chose to login with Master PIN
+    if (showMasterPinPrompt) {
+      return (
+        <LockScreen
+          onUnlock={() => {
+            setIsUnlocked(true);
+            setShowMasterPinPrompt(false);
+          }}
+        />
+      );
+    }
+
+    // Case D: Direct visit to /panjika without token and app is locked -> Register Slug Access Screen
     return (
-      <RegisterBookView
-        settings={settings}
-        onBack={() => navigateTo('/')}
+      <RegisterSlugLockScreen
+        expectedSlug={configuredSlug}
+        onSuccess={() => setSlugUnlockedInSession(true)}
+        onSwitchToMasterPin={() => setShowMasterPinPrompt(true)}
       />
     );
+  }
+
+  // ── 2. Master PIN Lock Screen for Main App ──
+  if (!isUnlocked) {
+    return <LockScreen onUnlock={() => setIsUnlocked(true)} />;
   }
 
   return (
