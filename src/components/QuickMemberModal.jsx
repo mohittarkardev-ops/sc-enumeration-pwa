@@ -289,6 +289,9 @@ export default function QuickMemberModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 animate-fadeIn">
         
+        {/* National Tricolor Top Accent */}
+        <div className="h-1 w-full bg-gradient-to-r from-[#FF671F] via-[#FFFFFF] to-[#046A38] shrink-0" />
+
         {/* Header */}
         <div className="bg-[#0B3B60] text-white px-4 py-3 sm:py-3.5 flex items-center justify-between border-b border-[#072F5F] shrink-0">
           <div className="flex items-center gap-2.5">
@@ -296,7 +299,7 @@ export default function QuickMemberModal({
               #{serialNo}
             </span>
             <div>
-              <h2 className="text-sm sm:text-base font-bold leading-tight">
+              <h2 className="text-sm sm:text-base font-serifHindi font-bold leading-tight">
                 {serialNo === 1 ? 'मुखिया का त्वरित विवरण' : `सदस्य संख्या ${serialNo} का त्वरित विवरण`}
               </h2>
               <p className="text-[11px] text-slate-200">

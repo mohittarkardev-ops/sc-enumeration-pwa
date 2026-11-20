@@ -636,6 +636,9 @@ export default function MemberModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-xl h-full sm:h-[94vh] shadow-2xl flex flex-col border-0 sm:border border-slate-200 overflow-hidden">
         
+        {/* National Tricolor Top Accent */}
+        <div className="h-1 w-full bg-gradient-to-r from-[#FF671F] via-[#FFFFFF] to-[#046A38] shrink-0" />
+
         {/* Official Header with Refined Padding */}
         <div className="bg-[#0B3B60] text-white px-4 py-3 flex items-center justify-between shrink-0 border-b border-[#072F5F]">
           <div className="flex items-center gap-2.5">
@@ -643,7 +646,7 @@ export default function MemberModal({
               #{formData.serial_no}
             </span>
             <div>
-              <h2 className="text-sm font-bold leading-tight">
+              <h2 className="text-sm sm:text-base font-serifHindi font-bold leading-tight">
                 {formData.serial_no === 1 ? 'परिवार के मुखिया का प्रपत्र' : `परिवार के सदस्य का प्रपत्र (${formData.serial_no})`}
               </h2>
               <div className="text-[11px] text-slate-200">

@@ -19,7 +19,7 @@ import {
 import { db } from '../db/db';
 import { syncPendingData, checkDatabaseConnection } from '../db/supabase';
 import { exportAllDataToExcel } from '../utils/exportExcel';
-import { EmblemOfIndia, CensusLogo } from './OfficialLogos';
+import { EmblemOfIndia, CensusLogo, AadhaarLogo } from './OfficialLogos';
 
 export default function Header({
   activeSection,
@@ -148,43 +148,50 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-30 shadow-md w-full max-w-full overflow-hidden">
-      {/* 1. Official National Tricolor Accent Bar */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808]" />
+    <header className="relative w-full max-w-full overflow-hidden bg-[#0B3B60] shadow-xs print:hidden">
+      {/* 1. Official National Tricolor Accent Bar (myAadhaar tricolor wash) */}
+      <div className="h-1 sm:h-1.5 w-full bg-gradient-to-r from-[#FF671F] via-[#FFFFFF] to-[#046A38]" />
 
-      {/* 2. Official GoI Masthead - Enhanced Mobile Typography */}
-      <div className="bg-[#0B3B60] text-white px-2.5 sm:px-4 py-1.5 sm:py-2 border-b border-[#072F5F] w-full overflow-hidden">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2 w-full">
+      {/* 2. Official GoI Masthead - Dignified Official Aesthetics */}
+      <div className="bg-[#0B3B60] text-white px-2.5 sm:px-4 py-2 sm:py-2.5 border-b border-[#072F5F]/80 w-full overflow-hidden">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 w-full">
           
-          {/* Left: State Emblem + Official Department Branding */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
-            <div className="p-1 rounded-xl bg-white/10 border border-white/20 shrink-0 shadow-xs flex items-center justify-center ring-1 ring-white/10">
-              <EmblemOfIndia className="w-5 h-7 sm:w-7 sm:h-9 text-amber-300" />
+          {/* Left: Real State Emblem of India + Official Department Branding */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+            <div className="p-1 rounded-xl bg-white/10 border border-white/20 shrink-0 shadow-xs flex items-center justify-center ring-1 ring-white/15">
+              <EmblemOfIndia className="h-8 sm:h-10 w-auto" />
             </div>
 
-            <div className="space-y-0.5 min-w-0 truncate">
-              <div className="text-[9px] sm:text-xs text-sky-200 tracking-wider uppercase font-semibold leading-none truncate">
-                भारत सरकार • <span className="font-english font-bold">Govt of India</span>
+            <div className="space-y-0.5 min-w-0">
+              <div className="text-[9.5px] sm:text-xs text-sky-200 tracking-wider uppercase font-semibold leading-none truncate">
+                भारत सरकार • <span className="font-english font-bold">GOVERNMENT OF INDIA</span>
               </div>
-              <div className="text-[8.5px] sm:text-[10px] text-slate-300 leading-tight hidden xs:block truncate">
-                गृह मंत्रालय | महारजिस्ट्रार एवं जनगणना आयुक्त कार्यालय
+              <div className="text-[8.5px] sm:text-[10.5px] text-slate-300 leading-tight hidden xs:block truncate">
+                गृह मंत्रालय • महारजिस्ट्रार एवं जनगणना आयुक्त कार्यालय
               </div>
-              <h1 className="text-xs xs:text-sm sm:text-base font-black tracking-tight text-white leading-tight flex items-center gap-1 truncate">
+              <h1 className="text-sm xs:text-base sm:text-lg font-serifHindi font-bold tracking-tight text-white leading-tight flex items-center gap-1.5 truncate">
                 <span className="truncate">जनगणना प्रगणक प्रणाली</span>
-                <span className="font-english text-[10px] sm:text-xs font-bold text-amber-300 bg-white/10 px-1 py-0.2 rounded border border-white/15 shrink-0">PE</span>
+                <span className="font-sans text-[9px] sm:text-[10px] font-extrabold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-full border border-white/15 shrink-0">
+                  PE
+                </span>
               </h1>
             </div>
           </div>
 
-          {/* Right: Tools & Actions */}
+          {/* Right: Census Emblem & Modern Pill Action Buttons */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Real Official Census Emblem */}
+            <div className="hidden sm:flex items-center mr-1">
+              <CensusLogo className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border-2 border-white/30 shadow-xs" />
+            </div>
+
             {/* Excel Download */}
             <button
               onClick={exportAllDataToExcel}
               title="डेटा Excel में एक्सपोर्ट करें"
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[38px]"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[36px]"
             >
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+              <Download className="w-3.5 h-3.5 text-amber-300 shrink-0" />
               <span className="hidden md:inline font-english">Excel</span>
             </button>
 
@@ -192,7 +199,7 @@ export default function Header({
             <button
               onClick={onOpenSettings}
               title="प्रशासनिक विन्यास एवं सेटिंग्स"
-              className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white transition-all active:scale-95 shadow-xs min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center shrink-0"
+              className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all active:scale-95 shadow-xs min-h-[34px] min-w-[34px] sm:min-h-[36px] sm:min-w-[36px] flex items-center justify-center shrink-0"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
@@ -202,7 +209,7 @@ export default function Header({
               <button
                 onClick={onLockApp}
                 title="प्रणाली तुरंत लॉक करें (Lock App)"
-                className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-rose-900/80 border border-white/20 text-white transition-all active:scale-95 shadow-xs min-h-[34px] min-w-[34px] sm:min-h-[38px] sm:min-w-[38px] flex items-center justify-center shrink-0"
+                className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-rose-900/80 border border-white/20 text-amber-300 transition-all active:scale-95 shadow-xs min-h-[34px] min-w-[34px] sm:min-h-[36px] sm:min-w-[36px] flex items-center justify-center shrink-0"
               >
                 <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
               </button>
@@ -211,16 +218,16 @@ export default function Header({
             {/* View Mode Switcher */}
             <button
               onClick={() => onViewChange(activeView === 'form' ? 'list' : 'form')}
-              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-900 text-xs sm:text-sm font-black flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[38px] shrink-0"
+              className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 text-xs sm:text-sm font-bold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[36px] shrink-0"
             >
               {activeView === 'form' ? (
                 <>
-                  <ListFilter className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <ListFilter className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden xs:inline">सूची</span>
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <PlusCircle className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden xs:inline">नया</span>
                 </>
               )}
@@ -230,9 +237,9 @@ export default function Header({
             <button
               onClick={onOpenPanjika}
               title="आधिकारिक परिवार पंजिका प्रपत्र (/panjika)"
-              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[38px] bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50 shrink-0"
+              className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 transition-all active:scale-95 shadow-xs min-h-[34px] sm:min-h-[36px] bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 shrink-0"
             >
-              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+              <BookOpen className="w-3.5 h-3.5 text-amber-200 shrink-0" />
               <span>पंजिका</span>
             </button>
           </div>
@@ -241,10 +248,10 @@ export default function Header({
 
       {/* 3. DYNAMIC SECTIONS RIBBON & REAL DATABASE STATUS */}
       <div className="bg-[#072F5F] px-2.5 sm:px-4 py-1.5 sm:py-2 text-white border-b border-[#052246] w-full overflow-hidden">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2 w-full">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 w-full">
           
           {/* Scrollable Dynamic Section Tabs */}
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <span className="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wide shrink-0">
               प्रभाग:
             </span>
@@ -252,10 +259,10 @@ export default function Header({
               <button
                 key={sec.id}
                 onClick={() => onSectionChange(sec.id)}
-                className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold transition-all border whitespace-nowrap shadow-xs active:scale-95 ${
+                className={`px-3 py-1 rounded-full text-xs sm:text-sm font-semibold transition-all border whitespace-nowrap shadow-xs active:scale-95 ${
                   activeSection === sec.id
-                    ? 'bg-white text-[#0B3B60] border-white font-black'
-                    : 'bg-[#0B3B60]/80 text-slate-200 border-white/10 hover:bg-[#0B3B60]'
+                    ? 'bg-white text-[#0B3B60] border-white font-bold shadow-sm'
+                    : 'bg-white/10 text-slate-200 border-white/10 hover:bg-white/20'
                 }`}
               >
                 {sec.name}
@@ -264,7 +271,7 @@ export default function Header({
 
             <button
               onClick={onOpenSettings}
-              className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-amber-300 shrink-0 transition-all active:scale-95"
+              className="p-1 rounded-full bg-white/10 hover:bg-white/20 text-amber-300 shrink-0 transition-all active:scale-95"
               title="सेक्शन / टोले का नाम बदलें या नया जोड़ें"
             >
               <Edit2 className="w-3 h-3" />
@@ -276,7 +283,7 @@ export default function Header({
             <button
               onClick={handleStatusBadgeClick}
               title={dbStatus.message || 'लाइव कनेक्शन स्थिति देखें'}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] sm:text-xs font-bold border transition-all active:scale-95 ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold border transition-all active:scale-95 ${
                 dbStatus.connected
                   ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
                   : dbStatus.code === 'SCHEMA_MISSING'
@@ -319,10 +326,10 @@ export default function Header({
             <button
               onClick={handleSync}
               disabled={isSyncing}
-              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-extrabold border transition-all active:scale-95 ${
+              className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold border transition-all active:scale-95 ${
                 pendingCount > 0
-                  ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-sm'
-                  : 'bg-[#134D7E] text-slate-200 border-white/10 hover:bg-[#1A5B94]'
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-sm'
+                  : 'bg-white/10 text-slate-200 border-white/15 hover:bg-white/20'
               }`}
             >
               <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />

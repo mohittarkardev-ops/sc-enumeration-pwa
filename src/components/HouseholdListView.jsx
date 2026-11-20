@@ -185,7 +185,7 @@ export default function HouseholdListView({ activeSection, onNewEntry, onEditHou
       <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 flex-wrap gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
+            <h2 className="text-sm sm:text-base font-serifHindi font-bold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
               <FolderOpen className="w-4 h-4 text-[#0B3B60]" />
               <span>परिवार पंजिका (Household Roster)</span>
             </h2>

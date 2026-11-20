@@ -76,23 +76,29 @@ export default function LockScreen({ onUnlock }) {
           
           {/* Official Indian Masthead Header */}
           <div className="bg-[#0B3B60] text-white p-4 sm:p-5 text-center relative border-b border-[#072F5F]">
-            <div className="flex justify-center mb-2">
-              <div className="p-2 rounded-2xl bg-white/10 border border-white/20 shadow-md">
-                <EmblemOfIndia className="w-8 h-10 sm:w-10 sm:h-12 text-amber-300" />
+            {/* National Tricolor Line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#FF671F] via-[#FFFFFF] to-[#046A38]" />
+
+            <div className="flex justify-center items-center gap-3 mb-2.5 pt-1">
+              <div className="p-1.5 rounded-2xl bg-white/10 border border-white/20 shadow-md">
+                <EmblemOfIndia className="h-10 sm:h-12 w-auto" />
+              </div>
+              <div className="p-1 rounded-2xl bg-white/10 border border-white/20 shadow-md">
+                <CensusLogo className="h-10 w-10 sm:h-12 sm:w-12 rounded-full" />
               </div>
             </div>
 
-            <div className="text-[10px] sm:text-xs text-slate-200 tracking-widest uppercase font-bold">
+            <div className="text-[10px] sm:text-xs text-sky-200 tracking-widest uppercase font-semibold">
               भारत सरकार • GOVERNMENT OF INDIA
             </div>
-            <div className="text-[11px] sm:text-xs text-slate-300 font-medium mt-0.5">
-              गृह मंत्रालय | महारजिस्ट्रार एवं जनगणना आयुक्त कार्यालय
+            <div className="text-[10px] sm:text-[11px] text-slate-300 font-medium mt-0.5">
+              गृह मंत्रालय • महारजिस्ट्रार एवं जनगणना आयुक्त कार्यालय
             </div>
-            <h1 className="text-base sm:text-lg font-black text-white mt-1">
+            <h1 className="text-base sm:text-xl font-serifHindi font-bold text-white mt-1.5 tracking-tight">
               जनगणना प्रगणक प्रणाली (Census PE)
             </h1>
 
-            <div className="mt-2.5 inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3 py-1 rounded-full text-xs font-black shadow-sm">
+            <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
               <Lock className="w-3.5 h-3.5" />
               <span>गोपनीय • केवल अधिकृत प्रगणक हेतु</span>
             </div>
@@ -101,7 +107,7 @@ export default function LockScreen({ onUnlock }) {
           {/* Form & PIN Input Body */}
           <div className="p-4 sm:p-6 space-y-4">
             <div className="text-center space-y-1">
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center justify-center gap-1.5">
+              <h2 className="text-base sm:text-lg font-serifHindi font-bold text-slate-900 flex items-center justify-center gap-1.5">
                 <KeyRound className="w-5 h-5 text-[#0B3B60]" />
                 <span>प्रगणक सुरक्षा कोड दर्ज करें</span>
               </h2>

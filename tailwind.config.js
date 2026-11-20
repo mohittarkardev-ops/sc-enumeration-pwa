@@ -7,8 +7,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Hind', 'system-ui', '-apple-system', 'sans-serif'],
-        hindi: ['Hind', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans Devanagari', 'Hind', 'system-ui', '-apple-system', 'sans-serif'],
+        hindi: ['Noto Sans Devanagari', 'Hind', 'sans-serif'],
+        serifHindi: ['"Noto Serif Devanagari"', '"Noto Serif"', 'Georgia', 'serif'],
         english: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },

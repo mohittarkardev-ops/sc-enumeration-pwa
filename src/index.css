@@ -4,8 +4,9 @@
 
 @layer base {
   :root {
-    --font-ui: 'Inter', 'Hind', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-hindi: 'Hind', sans-serif;
+    --font-ui: 'Inter', 'Noto Sans Devanagari', 'Hind', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-hindi: 'Noto Sans Devanagari', 'Hind', sans-serif;
+    --font-serif-hindi: 'Noto Serif Devanagari', 'Noto Serif', Georgia, serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
@@ -77,4 +78,28 @@
 /* Refined government header glow */
 .masthead-glow {
   background: linear-gradient(180deg, rgba(11, 59, 96, 1) 0%, rgba(7, 47, 95, 1) 100%);
+}
+
+/* Official Typography & Card Utilities */
+.font-serif-hindi {
+  font-family: var(--font-serif-hindi);
+}
+
+.font-hindi {
+  font-family: var(--font-hindi);
+}
+
+.official-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05);
+}
+
+.official-card-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.official-card-interactive:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.08);
 }

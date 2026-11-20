@@ -585,7 +585,7 @@ export default function HouseholdEntry({
           {/* भाग 1: भवन, मकान एवं परिवार क्रमांक */}
           <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
+              <h2 className="text-xs sm:text-sm font-serifHindi font-bold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
                 <Home className="w-4 h-4 text-[#0B3B60]" />
                 <span>भाग 1: भवन, मकान एवं परिवार क्रमांक</span>
               </h2>
@@ -831,7 +831,7 @@ export default function HouseholdEntry({
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-[#0B3B60]" />
-                <h2 className="text-xs sm:text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+                <h2 className="text-xs sm:text-sm font-serifHindi font-bold text-[#0B3B60] uppercase tracking-wide">
                   भाग 2: सदस्य सूची ({members.length})
                 </h2>
               </div>
@@ -995,7 +995,7 @@ export default function HouseholdEntry({
           {/* Section A: पारिवारिक संबंध मैट्रिक्स (RELATIONSHIP MATRIX CONFIRMATION) */}
           <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <div className="border-b border-slate-100 pb-2">
-              <h2 className="text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
+              <h2 className="text-sm font-serifHindi font-bold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1.5">
                 <UserCheck className="w-4 h-4 text-[#0B3B60]" />
                 <span>१. पारिवारिक संबंध समीक्षा (Family Relations Confirmation)</span>
               </h2>
@@ -1096,7 +1096,7 @@ export default function HouseholdEntry({
           {/* Section B: परिवार-स्तरीय सामान्य प्रश्न (HOUSEHOLD-WIDE COMMON QUESTIONS) */}
           <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
             <div className="border-b border-slate-100 pb-2">
-              <h2 className="text-sm font-extrabold text-[#0B3B60] uppercase tracking-wide">
+              <h2 className="text-sm font-serifHindi font-bold text-[#0B3B60] uppercase tracking-wide">
                 २. परिवार-स्तरीय सामान्य प्रश्न (Household Shared Details)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
