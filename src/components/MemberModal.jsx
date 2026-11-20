@@ -170,16 +170,49 @@ export default function MemberModal({
         const headIsMarried = headMember && Number(headMember.q5_marital_status) === 2;
         const spouseAlreadyExists = householdMembers.some(m => Number(m.q2_relationship) === 2);
 
-        if (serialNo === 2 && headIsMarried && !spouseAlreadyExists) {
+        if (serialNo === 1) {
+          // Mukhiya: parents are outside unless code 12 is in household
+          newData.q2_relationship = 1;
+          const parentFather = householdMembers.find(m => Number(m.q2_relationship) === 12 && Number(m.q3_gender) === 1);
+          const parentMother = householdMembers.find(m => Number(m.q2_relationship) === 12 && Number(m.q3_gender) === 2);
+          newData.q11_father_in_hh = !!parentFather;
+          newData.q11_father_serial_no = parentFather ? parentFather.serial_no : null;
+          newData.q12_mother_in_hh = !!parentMother;
+          newData.q12_mother_serial_no = parentMother ? parentMother.serial_no : null;
+        } else if (serialNo === 2 && headIsMarried && !spouseAlreadyExists) {
           newData.q2_relationship = 2; // पति या पत्नी
           newData.q3_gender = headMember.q3_gender === 1 ? 2 : 1; // विपरीत लिंग
           newData.q5_marital_status = 2; // विवाहित
           newData.q7_spouse_serial_no = '1'; // मुखिया से स्वतः लिंक
+          newData.q11_father_in_hh = false;
+          newData.q11_father_serial_no = null;
+          newData.q12_mother_in_hh = false;
+          newData.q12_mother_serial_no = null;
         } else if (serialNo > 1) {
           newData.q2_relationship = 3; // बेटा/बेटी
           newData.q3_gender = 1;
           newData.q5_marital_status = 1; // अविवाहित
           newData.q7_spouse_serial_no = '';
+          // 👨‍👩‍👧‍👦 Auto-link parents for child of Mukhiya (03)
+          if (headMember) {
+            const isHeadMale = Number(headMember.q3_gender) === 1;
+            const spouse = householdMembers.find(m => Number(m.q2_relationship) === 2);
+            if (isHeadMale) {
+              newData.q11_father_in_hh = true;
+              newData.q11_father_serial_no = headMember.serial_no;
+              if (spouse) {
+                newData.q12_mother_in_hh = true;
+                newData.q12_mother_serial_no = spouse.serial_no;
+              }
+            } else {
+              newData.q12_mother_in_hh = true;
+              newData.q12_mother_serial_no = headMember.serial_no;
+              if (spouse) {
+                newData.q11_father_in_hh = true;
+                newData.q11_father_serial_no = spouse.serial_no;
+              }
+            }
+          }
         }
         if (serialNo > 1 && headMember) {
           newData.q9_religion = headMember.q9_religion || 1;
@@ -231,12 +264,56 @@ export default function MemberModal({
     const relCode = Number(code);
     setFormData((prev) => {
       const updated = { ...prev, q2_relationship: relCode };
-      // Smart Auto-fill: If relationship is Spouse (02) and member is not Head
+      // 1. Spouse of Head (02)
       if (relCode === 2 && prev.serial_no > 1) {
         updated.q5_marital_status = 2; // विवाहित
         updated.q7_spouse_serial_no = '1'; // मुखिया
         if (headMember) {
           updated.q3_gender = headMember.q3_gender === 1 ? 2 : 1;
+        }
+      }
+      // 2. Daughter-in-law (04 बहू)
+      else if (relCode === 4) {
+        updated.q3_gender = 2; // महिला
+        updated.q5_marital_status = 2; // विवाहित
+        const marriedSon = householdMembers.find(
+          (m) => Number(m.q2_relationship) === 3 && Number(m.q3_gender) === 1 && Number(m.q5_marital_status) === 2
+        );
+        if (marriedSon) {
+          updated.q7_spouse_serial_no = String(marriedSon.serial_no);
+        }
+      }
+      // 3. Child of Head (03 बेटा/बेटी)
+      else if (relCode === 3 && headMember) {
+        const isHeadMale = Number(headMember.q3_gender) === 1;
+        const spouse = householdMembers.find((m) => Number(m.q2_relationship) === 2);
+        if (isHeadMale) {
+          updated.q11_father_in_hh = true;
+          updated.q11_father_serial_no = headMember.serial_no;
+          if (spouse) {
+            updated.q12_mother_in_hh = true;
+            updated.q12_mother_serial_no = spouse.serial_no;
+          }
+        } else {
+          updated.q12_mother_in_hh = true;
+          updated.q12_mother_serial_no = headMember.serial_no;
+          if (spouse) {
+            updated.q11_father_in_hh = true;
+            updated.q11_father_serial_no = spouse.serial_no;
+          }
+        }
+      }
+      // 4. Grandchild of Head (06 पोता/पोती)
+      else if (relCode === 6) {
+        const son = householdMembers.find((m) => Number(m.q2_relationship) === 3 && Number(m.q3_gender) === 1);
+        const bahu = householdMembers.find((m) => Number(m.q2_relationship) === 4);
+        if (son) {
+          updated.q11_father_in_hh = true;
+          updated.q11_father_serial_no = son.serial_no;
+        }
+        if (bahu) {
+          updated.q12_mother_in_hh = true;
+          updated.q12_mother_serial_no = bahu.serial_no;
         }
       }
       return updated;
@@ -248,7 +325,15 @@ export default function MemberModal({
     if (isAgeLocked) return; // Prevent manual change when calculated from valid DOB
     const clean = sanitizeNumeric(val);
     const num = clean === '' ? '' : Math.min(125, parseInt(clean, 10));
-    setFormData((prev) => ({ ...prev, q4b_age: num }));
+    setFormData((prev) => {
+      const next = { ...prev, q4b_age: num };
+      if (typeof num === 'number' && num < 10) {
+        next.q5_marital_status = 1; // 1 - अविवाहित
+        next.q6_age_at_marriage = '';
+        next.q7_spouse_serial_no = '';
+      }
+      return next;
+    });
     if (errors.q4b_age) setErrors((prev) => ({ ...prev, q4b_age: undefined }));
   };
 
@@ -259,11 +344,19 @@ export default function MemberModal({
     if (formatted.length === 10) {
       const res = parseAndValidateDob(formatted);
       if (res.isValid && res.calculatedAge !== null) {
-        setFormData((prev) => ({
-          ...prev,
-          q4a_dob: res.formattedDob,
-          q4b_age: res.calculatedAge
-        }));
+        setFormData((prev) => {
+          const next = {
+            ...prev,
+            q4a_dob: res.formattedDob,
+            q4b_age: res.calculatedAge
+          };
+          if (res.calculatedAge < 10) {
+            next.q5_marital_status = 1; // 1 - अविवाहित
+            next.q6_age_at_marriage = '';
+            next.q7_spouse_serial_no = '';
+          }
+          return next;
+        });
         setIsAgeLocked(true);
         if (errors.q4a_dob || errors.q4b_age) {
           setErrors((prev) => ({ ...prev, q4a_dob: undefined, q4b_age: undefined }));
@@ -751,12 +844,20 @@ export default function MemberModal({
 
               {/* Q.5 वैवाहिक स्थिति */}
               <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 5 वर्तमान वैवाहिक स्थिति <span className="text-red-600 font-bold">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 5 वर्तमान वैवाहिक स्थिति <span className="text-red-600 font-bold">*</span>
+                  </label>
+                  {age > 0 && age < 10 && (
+                    <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      १० वर्ष से कम: केवल १-अविवाहित मान्य
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <select
-                    value={formData.q5_marital_status}
+                    value={age > 0 && age < 10 ? 1 : formData.q5_marital_status}
+                    disabled={age > 0 && age < 10}
                     onChange={(e) => {
                       const newStatus = Number(e.target.value);
                       setFormData((prev) => ({
@@ -765,7 +866,9 @@ export default function MemberModal({
                         q7_spouse_serial_no: newStatus === 2 ? prev.q7_spouse_serial_no : ''
                       }));
                     }}
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
+                    className={`w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white appearance-none pr-8 text-sm sm:text-base focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
+                      age > 0 && age < 10 ? 'bg-slate-100 opacity-80 cursor-not-allowed' : ''
+                    }`}
                   >
                     {MARITAL_STATUS_CODES.map((m) => (
                       <option key={m.code} value={m.code}>
@@ -1766,7 +1869,11 @@ export default function MemberModal({
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, q15a_literacy: 1 })}
+                        onClick={() => setFormData({
+                          ...formData,
+                          q15a_literacy: 1,
+                          q16_education_status: formData.q16_education_status === 9 ? 2 : formData.q16_education_status
+                        })}
                         className={`py-2 rounded-lg font-bold text-xs border ${
                           formData.q15a_literacy === 1
                             ? 'bg-[#0B3B60] text-white border-[#072F5F] shadow-sm'
@@ -1777,7 +1884,13 @@ export default function MemberModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, q15a_literacy: 2 })}
+                        onClick={() => setFormData({
+                          ...formData,
+                          q15a_literacy: 2,
+                          q15b_digital_literate: 2,
+                          q16_education_status: 9, // 9 - कभी नहीं पढ़े
+                          q17a_highest_education: 0
+                        })}
                         className={`py-2 rounded-lg font-bold text-xs border ${
                           formData.q15a_literacy === 2
                             ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm'
@@ -1838,6 +1951,12 @@ export default function MemberModal({
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
+                    {formData.q15a_literacy === 2 && (
+                      <p className="text-[11px] text-amber-800 font-semibold bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center gap-1.5 mt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>निरक्षर होने के कारण शैक्षणिक संस्थान स्वतः '9 - कभी नहीं पढ़े' सेट है।</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Q.17 उच्चतम शिक्षा स्तर */}
@@ -2171,6 +2290,37 @@ export default function MemberModal({
           {/* TAB 4: जन्म, प्रवास एवं पता (प्र. 26 से 30) */}
           {activeTab === 4 && (
             <div className="space-y-3.5">
+              {/* Quick Preset Banner for Local Resident */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-3 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+                <div>
+                  <p className="text-xs sm:text-sm font-extrabold text-[#0B3B60]">
+                    ✓ जन्म से इसी गांव/स्थान पर स्थायी निवासी
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    प्र. 26 व 27 'यहीं', प्रवास लागू नहीं, व पता स्वतः सेट करें
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    q26_birth_place_type: 'here',
+                    q26_birth_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+                    q26_birth_place_details: '',
+                    q27_last_residence_type: 'here',
+                    q27_last_residence_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+                    q27_last_residence_details: '',
+                    q28_migration_reason: '',
+                    q29_residence_duration_years: '',
+                    q30_permanent_address_same: true,
+                    q30_permanent_address: headMember?.q30_permanent_address || prev.q30_permanent_address || ''
+                  }))}
+                  className="px-3.5 py-1.5 bg-[#0B3B60] hover:bg-[#072F5F] text-white rounded-lg text-xs font-bold shrink-0 shadow-xs active:scale-95 transition-all"
+                >
+                  1-टैप सेट करें
+                </button>
+              </div>
+
               {/* Q.26 जन्म स्थान */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                 <label className="block text-xs sm:text-sm font-bold text-slate-900">प्र. 26 जन्म स्थान</label>
@@ -2373,8 +2523,41 @@ export default function MemberModal({
           {/* TAB 5: प्रजनन विवरण (प्र. 31 से 33) */}
           {isFemale && isMarriedOrEver && activeTab === (tabs.findIndex(t => t.id === 'fertility')) && (
             <div className="space-y-3.5 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 shadow-sm">
-              <div className="text-xs sm:text-sm font-bold text-slate-900 border-b border-amber-300 pb-1">
-                प्रजनन संबंधी विवरण (केवल कभी-विवाहित महिलाओं हेतु)
+              <div className="text-xs sm:text-sm font-bold text-slate-900 border-b border-amber-300 pb-1 flex items-center justify-between">
+                <span>प्रजनन संबंधी विवरण (केवल कभी-विवाहित महिलाओं हेतु)</span>
+              </div>
+
+              {/* Fast 1-Tap Action Helpers */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    q31_children_ever_born_female: 0,
+                    q31_children_ever_born_male: 0,
+                    q32_children_surviving_female: 0,
+                    q32_children_surviving_male: 0,
+                    q33_children_born_last_year_female: 0,
+                    q33_children_born_last_year_male: 0
+                  }))}
+                  className="py-2 px-2.5 bg-white hover:bg-slate-50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950 shadow-xs active:scale-95 transition-all text-center flex items-center justify-center gap-1"
+                >
+                  <span>🚫 0 संतान (कोई नहीं)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    q31_children_ever_born_female: Number(prev.q32_children_surviving_female) || 0,
+                    q31_children_ever_born_male: Number(prev.q32_children_surviving_male) || 0,
+                    q33_children_born_last_year_female: prev.q33_children_born_last_year_female || 0,
+                    q33_children_born_last_year_male: prev.q33_children_born_last_year_male || 0
+                  }))}
+                  className="py-2 px-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all text-center flex items-center justify-center gap-1"
+                >
+                  <span>✓ सभी जीवित हैं (Q.31 से कॉपी)</span>
+                </button>
               </div>
 
               {/* Q.31 वर्तमान में जीवित संतानें (Matching Official Schedule Col 31) */}
@@ -2532,9 +2715,23 @@ export default function MemberModal({
 
               {/* Q.36 मोबाइल नंबर */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-1">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 36 मोबाइल नंबर (10 अंक)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 36 मोबाइल नंबर (10 अंक)
+                  </label>
+                  {formData.serial_no > 1 && headMember?.q36_mobile_number && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, q36_mobile_number: headMember.q36_mobile_number }));
+                        if (errors.q36_mobile_number) setErrors((prev) => ({ ...prev, q36_mobile_number: undefined }));
+                      }}
+                      className="text-xs text-[#0B3B60] hover:text-blue-900 font-bold underline active:scale-95 transition-all"
+                    >
+                      मुखिया का नंबर भरें ({headMember.q36_mobile_number})
+                    </button>
+                  )}
+                </div>
                 <input
                   type="tel"
                   inputMode="numeric"

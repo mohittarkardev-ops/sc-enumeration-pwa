@@ -70,7 +70,7 @@ export const resolveFamilyRelationships = (members = []) => {
     // ==========================================
     // 2. SMART FATHER RESOLUTION (Q.11)
     // ==========================================
-    if (inferredFatherInHh === undefined || inferredFatherInHh === null) {
+    if (inferredFatherInHh === undefined || inferredFatherInHh === null || (!inferredFatherSNo && (rel === 3 || rel === 6))) {
       if (rel === 3) {
         // Child of Head (बेटा / बेटी):
         if (isHeadMale && (!head.q4b_age || Number(head.q4b_age) >= Number(m.q4b_age || 0) + 12)) {
@@ -130,7 +130,7 @@ export const resolveFamilyRelationships = (members = []) => {
     // ==========================================
     // 3. SMART MOTHER RESOLUTION (Q.12)
     // ==========================================
-    if (inferredMotherInHh === undefined || inferredMotherInHh === null) {
+    if (inferredMotherInHh === undefined || inferredMotherInHh === null || (!inferredMotherSNo && (rel === 3 || rel === 6))) {
       if (rel === 3) {
         // Child of Head (बेटा / बेटी):
         if (isHeadFemale && (!head.q4b_age || Number(head.q4b_age) >= Number(m.q4b_age || 0) + 12)) {
@@ -189,13 +189,25 @@ export const resolveFamilyRelationships = (members = []) => {
     const finalMotherInHh = inferredMotherInHh !== undefined ? !!inferredMotherInHh : !!m.q12_mother_in_hh;
     const finalMotherSNo = finalMotherInHh && inferredMotherSNo ? Number(inferredMotherSNo) : null;
 
+    // Smart Family Clone: Inherit religion, social category, caste, mother tongue, address from Head
+    const finalReligion = m.q9_religion || head?.q9_religion || 1;
+    const finalSocialCat = m.q10a_sc_st || head?.q10a_sc_st || 3;
+    const finalCasteName = m.q10c_caste_name || head?.q10c_caste_name || '';
+    const finalMotherTongue = m.q14a_mother_tongue || head?.q14a_mother_tongue || 'हिन्दी';
+    const finalAddress = m.q30_permanent_address || head?.q30_permanent_address || '';
+
     return {
       ...m,
       q7_spouse_serial_no: inferredSpouse,
       q11_father_in_hh: finalFatherInHh,
       q11_father_serial_no: finalFatherSNo,
       q12_mother_in_hh: finalMotherInHh,
-      q12_mother_serial_no: finalMotherSNo
+      q12_mother_serial_no: finalMotherSNo,
+      q9_religion: finalReligion,
+      q10a_sc_st: finalSocialCat,
+      q10c_caste_name: finalCasteName,
+      q14a_mother_tongue: finalMotherTongue,
+      q30_permanent_address: finalAddress
     };
   });
 };

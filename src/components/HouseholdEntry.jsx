@@ -229,6 +229,14 @@ export default function HouseholdEntry({
 
     const resolved = resolveFamilyRelationships(updated);
     setMembers(resolved);
+
+    if (activeMemberIndex === 0 || updated.length === 1 || Number(memberData.serial_no) === 1) {
+      setHhReligion(memberData.q9_religion || 1);
+      setHhSocialCategory(memberData.q10a_sc_st || 3);
+      setHhCasteName(memberData.q10c_caste_name || '');
+      setHhMotherTongue(memberData.q14a_mother_tongue || 'हिन्दी');
+    }
+
     setIsFullModalOpen(false);
     setActiveMemberIndex(null);
   };
