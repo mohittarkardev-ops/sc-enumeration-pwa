@@ -12,7 +12,8 @@ import {
   Sparkles,
   CheckCircle2,
   Calendar,
-  QrCode
+  QrCode,
+  Zap
 } from 'lucide-react';
 import AadhaarQRScanner from './AadhaarQRScanner';
 import AadhaarDigitInput from './AadhaarDigitInput';
@@ -162,6 +163,29 @@ export default function MemberModal({
 
   const [formData, setFormData] = useState(initialData);
   const [marriageYear, setMarriageYear] = useState('');
+  const [syncBirthToResidence, setSyncBirthToResidence] = useState(true);
+  const [recentVillages, setRecentVillages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sc_recent_villages');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveRecentVillage = (villageName) => {
+    if (!villageName || !villageName.trim() || villageName.length < 2) return;
+    const clean = villageName.trim();
+    if (clean.includes('इसी गांव')) return;
+    setRecentVillages((prev) => {
+      const filtered = prev.filter((v) => v.toLowerCase() !== clean.toLowerCase());
+      const updated = [clean, ...filtered].slice(0, 8);
+      try {
+        localStorage.setItem('sc_recent_villages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
 
   // Helper to determine birth year from DOB or Age
   const getBirthYear = (data = formData) => {
@@ -332,6 +356,67 @@ export default function MemberModal({
   const age = Number(formData.q4b_age) || 0;
   const isFemale = Number(formData.q3_gender) === 2;
   const isMarriedOrEver = Number(formData.q5_marital_status) >= 2;
+  const isBahu = Number(formData.q2_relationship) === 4;
+  const isWife = Number(formData.q2_relationship) === 2 && isFemale;
+  const isMarriedFemale = isFemale && isMarriedOrEver;
+  const ageAtMarriage = Number(formData.q6_age_at_marriage) || 0;
+  const durationSinceMarriage = (age > 0 && ageAtMarriage > 0 && age >= ageAtMarriage) ? (age - ageAtMarriage) : '';
+
+  // Smart Sync & Copy Birthplace to Last Residence Helper
+  const handleCopyBirthplaceToLastResidence = () => {
+    const vName = formData.q26_birth_village || '';
+    const st = formData.q26_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)';
+    const dist = formData.q26_birth_district || 'मथुरा (Mathura)';
+    const details = formatBirthplace(st, dist, vName);
+    
+    let mDuration = formData.q29_residence_duration_years;
+    if (durationSinceMarriage !== '' && !mDuration) {
+      mDuration = String(durationSinceMarriage);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      q27_last_residence_type: prev.q27_last_residence_type === 'here' ? 'rural' : prev.q27_last_residence_type,
+      q27_last_residence_state: st,
+      q27_last_residence_district: dist,
+      q27_last_residence_village: vName,
+      q27_last_residence_details: details,
+      q27b_rural_urban: prev.q27b_rural_urban || 1,
+      q28_migration_reason: prev.q28_migration_reason || ((isBahu || isMarriedFemale) ? 4 : 6),
+      q29_residence_duration_years: mDuration || prev.q29_residence_duration_years || ''
+    }));
+
+    if (vName) saveRecentVillage(vName);
+  };
+
+  const handleBirthVillageChange = (vName) => {
+    const st = formData.q26_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)';
+    const dist = formData.q26_birth_district || 'मथुरा (Mathura)';
+    const details = formatBirthplace(st, dist, vName);
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        q26_birth_village: vName,
+        q26_birth_place_details: details
+      };
+      if (syncBirthToResidence || isBahu) {
+        next.q27_last_residence_type = prev.q27_last_residence_type === 'here' ? 'rural' : prev.q27_last_residence_type;
+        next.q27_last_residence_state = st;
+        next.q27_last_residence_district = dist;
+        next.q27_last_residence_village = vName;
+        next.q27_last_residence_details = details;
+        next.q27b_rural_urban = prev.q27b_rural_urban || 1;
+        if (isBahu || isMarriedFemale) {
+          if (!next.q28_migration_reason) next.q28_migration_reason = 4; // विवाह
+          if (durationSinceMarriage !== '' && !next.q29_residence_duration_years) {
+            next.q29_residence_duration_years = String(durationSinceMarriage);
+          }
+        }
+      }
+      return next;
+    });
+  };
 
   // Census Classification Flags (Strict Flowchart Compliance)
   const workCategory = Number(formData.q18_work_last_year); // 1 = Main, 2 = Marginal (3-6m), 3 = Marginal (<3m), 4 = Non-worker
@@ -411,11 +496,23 @@ export default function MemberModal({
       else if (relCode === 4) {
         updated.q3_gender = 2; // महिला
         updated.q5_marital_status = 2; // विवाहित
+        updated.q11_father_in_hh = false; // मायके में
+        updated.q12_mother_in_hh = false;
+        updated.q26_birth_place_type = 'india'; // मायका (अन्य गांव)
+        updated.q27_last_residence_type = 'rural';
+        updated.q28_migration_reason = 4; // विवाह
+        setSyncBirthToResidence(true);
         const marriedSon = householdMembers.find(
           (m) => Number(m.q2_relationship) === 3 && Number(m.q3_gender) === 1 && Number(m.q5_marital_status) === 2
+        ) || householdMembers.find(
+          (m) => Number(m.q2_relationship) === 3 && Number(m.q3_gender) === 1
         );
         if (marriedSon) {
           updated.q7_spouse_serial_no = String(marriedSon.serial_no);
+          if (marriedSon.marriage_year) {
+            setMarriageYear(String(marriedSon.marriage_year));
+            updated.marriage_year = marriedSon.marriage_year;
+          }
         }
       }
       // 3. Child of Head (03 बेटा/बेटी)
@@ -436,6 +533,10 @@ export default function MemberModal({
             updated.q11_father_in_hh = true;
             updated.q11_father_serial_no = spouse.serial_no;
           }
+        }
+        if (Number(updated.q5_marital_status) <= 1) {
+          updated.q26_birth_place_type = 'here';
+          updated.q27_last_residence_type = 'here';
         }
       }
       // 4. Grandchild of Head (06 पोता/पोती)
@@ -692,6 +793,11 @@ export default function MemberModal({
     if (isEnglishText(cleaned.q1_name)) {
       cleaned.q1_name = transliterateEnglishToHindi(cleaned.q1_name);
     }
+
+    if (cleaned.q26_birth_village) saveRecentVillage(cleaned.q26_birth_village);
+    if (cleaned.q27_last_residence_village) saveRecentVillage(cleaned.q27_last_residence_village);
+    if (cleaned.q11_father_birth_village) saveRecentVillage(cleaned.q11_father_birth_village);
+    if (cleaned.q12_mother_birth_village) saveRecentVillage(cleaned.q12_mother_birth_village);
 
     onSave(cleaned);
   };
@@ -2498,6 +2604,103 @@ export default function MemberModal({
                 </div>
               ) : (
                 <>
+                  {/* 1-टैप त्वरित कार्य प्रोफाइल (Speed Booster) */}
+                  <div className="bg-gradient-to-r from-blue-50/90 via-slate-50 to-indigo-50/90 p-3 rounded-xl border border-blue-200/90 shadow-2xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold text-[#0B3B60] uppercase tracking-wide flex items-center gap-1">
+                        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        1-टैप त्वरित कार्य प्रोफाइल (Speed Booster)
+                      </span>
+                      <span className="text-[10px] text-slate-500">प्र. 18-24 एक क्लिक में सेट करें</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          q18_work_last_year: 1, // Main worker
+                          q19_economic_activity: 1, // काश्तकार
+                          q20_occupation: '',
+                          q21_industry: '',
+                          q22_worker_class: null,
+                          q23_non_economic_activity: null,
+                          q24_seeking_work: null
+                        }))}
+                        className="px-2.5 py-1.5 bg-white hover:bg-emerald-50 border border-emerald-300 hover:border-emerald-500 rounded-lg text-xs font-bold text-emerald-950 shadow-2xs active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>🌾 किसान / काश्तकार</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          q18_work_last_year: 1, // Main worker
+                          q19_economic_activity: 2, // कृषि श्रमिक
+                          q20_occupation: '',
+                          q21_industry: '',
+                          q22_worker_class: null,
+                          q23_non_economic_activity: null,
+                          q24_seeking_work: null
+                        }))}
+                        className="px-2.5 py-1.5 bg-white hover:bg-green-50 border border-green-300 hover:border-green-500 rounded-lg text-xs font-bold text-green-950 shadow-2xs active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>🚜 खेतीहर मजदूर</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          q18_work_last_year: 4, // Non-worker
+                          q19_economic_activity: null,
+                          q20_occupation: '',
+                          q21_industry: '',
+                          q22_worker_class: null,
+                          q23_non_economic_activity: 2, // गृह कार्य
+                          q24_seeking_work: 3 // नहीं
+                        }))}
+                        className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 border border-indigo-300 hover:border-indigo-500 rounded-lg text-xs font-bold text-indigo-950 shadow-2xs active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>🏠 गृहणी (गृह कार्य)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          q18_work_last_year: 4, // Non-worker
+                          q19_economic_activity: null,
+                          q20_occupation: '',
+                          q21_industry: '',
+                          q22_worker_class: null,
+                          q23_non_economic_activity: 1, // विद्यार्थी
+                          q24_seeking_work: 3 // नहीं
+                        }))}
+                        className="px-2.5 py-1.5 bg-white hover:bg-blue-50 border border-blue-300 hover:border-blue-500 rounded-lg text-xs font-bold text-blue-950 shadow-2xs active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>📚 विद्यार्थी (छात्र)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          q18_work_last_year: 4, // Non-worker
+                          q19_economic_activity: null,
+                          q20_occupation: '',
+                          q21_industry: '',
+                          q22_worker_class: null,
+                          q23_non_economic_activity: 3, // आश्रित
+                          q24_seeking_work: 3 // नहीं
+                        }))}
+                        className="px-2.5 py-1.5 bg-white hover:bg-amber-50 border border-amber-300 hover:border-amber-500 rounded-lg text-xs font-bold text-amber-950 shadow-2xs active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>👶 आश्रित / बुजुर्ग</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Q.18 क्या आपने पिछले वर्ष के दौरान कभी कार्य किया? */}
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
                     <label className="block text-xs sm:text-sm font-bold text-slate-900">
@@ -2887,36 +3090,72 @@ export default function MemberModal({
 
                     {/* गाँव / कस्बा / तहसील */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                        3. गाँव / कस्बा / तहसील (Village / Town)
-                      </label>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          3. गाँव / कस्बा / तहसील (Village / Town)
+                        </label>
+                        {formData.q26_birth_place_details && (
+                          <span className="text-[10px] text-[#0B3B60] font-bold bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded truncate max-w-[200px]">
+                            {formData.q26_birth_place_details}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         value={formData.q26_birth_village || ''}
-                        onChange={(e) => {
-                          const vName = sanitizeText(e.target.value);
-                          setFormData({
-                            ...formData,
-                            q26_birth_village: vName,
-                            q26_birth_place_details: formatBirthplace(formData.q26_birth_state, formData.q26_birth_district, vName)
-                          });
-                        }}
-                        placeholder="उदा. राया, बरसाना, छाता, गोवर्धन"
+                        onChange={(e) => handleBirthVillageChange(sanitizeText(e.target.value))}
+                        placeholder="उदा. सादाबाद, राया, बरसाना, छाता, गोवर्धन"
                         className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 font-medium"
                       />
-                      {/* Village suggestion chips */}
+
+                      {/* Sync to Q.27 Toggle */}
+                      <div className="pt-1.5 mt-1 border-t border-slate-200/60 flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={syncBirthToResidence}
+                            onChange={(e) => setSyncBirthToResidence(e.target.checked)}
+                            className="w-3.5 h-3.5 text-[#0B3B60] rounded border-slate-300 focus:ring-[#0B3B60]"
+                          />
+                          <span className="text-[11px] font-bold text-slate-800">
+                            ⚡ पूर्व निवास (प्र. 27) भी यही गाँव स्वतः रखें
+                          </span>
+                        </label>
+                        {isBahu && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-extrabold shrink-0">
+                            पुत्रवधू हेतु
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Recent Villages Chips */}
+                      {recentVillages.length > 0 && (
+                        <div className="mt-1.5">
+                          <span className="text-[10px] font-bold text-amber-900 flex items-center gap-1 mb-0.5">
+                            ★ हाल ही में प्रयुक्त गाँव (1-टैप):
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {recentVillages.map((chip) => (
+                              <button
+                                key={chip}
+                                type="button"
+                                onClick={() => handleBirthVillageChange(chip)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-md transition-colors"
+                              >
+                                ★ {chip}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mathura Village suggestion chips */}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {LOCAL_VILLAGE_SUGGESTIONS.slice(1, 8).map((chip) => (
                           <button
                             key={chip}
                             type="button"
-                            onClick={() => {
-                              setFormData({
-                                ...formData,
-                                q26_birth_village: chip,
-                                q26_birth_place_details: formatBirthplace(formData.q26_birth_state, formData.q26_birth_district, chip)
-                              });
-                            }}
+                            onClick={() => handleBirthVillageChange(chip)}
                             className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 rounded-md transition-colors"
                           >
                             + {chip}
@@ -2930,9 +3169,40 @@ export default function MemberModal({
 
               {/* Q.27 पूर्व निवास स्थान */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">
-                  प्र. 27 पूर्व निवास स्थान (Last Residence)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                    प्र. 27 पूर्व निवास स्थान (Last Residence)
+                  </label>
+                  {isBahu && (
+                    <span className="text-[10px] bg-indigo-50 border border-indigo-200 text-[#0B3B60] px-2 py-0.5 rounded-full font-bold">
+                      पुत्रवधू / ससुराल प्रवास
+                    </span>
+                  )}
+                </div>
+
+                {/* 1-टैप जन्म स्थान ➔ पूर्व निवास कॉपी बैनर */}
+                {formData.q26_birth_place_type !== 'here' && (
+                  <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 p-2.5 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#0B3B60] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>जन्म स्थान ही पूर्व निवास है (विवाह उपरांत प्रवास)</span>
+                      </p>
+                      <p className="text-[11px] text-slate-600 truncate mt-0.5 font-medium">
+                        {formData.q26_birth_village ? `${formData.q26_birth_village}, ` : ''}{formData.q26_birth_district || ''}, {formData.q26_birth_state || ''}
+                        {durationSinceMarriage !== '' ? ` • कारण: विवाह (4) • अवधि: ${durationSinceMarriage} वर्ष` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyBirthplaceToLastResidence}
+                      className="px-2.5 py-1.5 bg-[#0B3B60] hover:bg-[#072F5F] text-white rounded-lg text-xs font-bold shrink-0 shadow-xs active:scale-95 transition-all"
+                    >
+                      1-टैप सेट करें ✓
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
                     { code: 'here', label: '1 - जन्म से यहीं' },
@@ -3032,6 +3302,42 @@ export default function MemberModal({
                         placeholder="उदा. आगरा, अलीगढ़, हाथरस, मथुरा"
                         className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 font-medium"
                       />
+
+                      {/* Suggestion Chips */}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {formData.q26_birth_village && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const vName = formData.q26_birth_village;
+                              setFormData((prev) => ({
+                                ...prev,
+                                q27_last_residence_village: vName,
+                                q27_last_residence_details: formatBirthplace(prev.q27_last_residence_state, prev.q27_last_residence_district, vName)
+                              }));
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-sky-100 hover:bg-sky-200 border border-sky-300 text-[#0B3B60] rounded-md transition-colors"
+                          >
+                            ★ जन्म स्थान वाला: {formData.q26_birth_village}
+                          </button>
+                        )}
+                        {recentVillages.filter(v => v !== formData.q26_birth_village).slice(0, 4).map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                q27_last_residence_village: chip,
+                                q27_last_residence_details: formatBirthplace(prev.q27_last_residence_state, prev.q27_last_residence_district, chip)
+                              }));
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-md transition-colors"
+                          >
+                            ★ {chip}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div>
