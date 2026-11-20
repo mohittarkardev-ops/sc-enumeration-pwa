@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Printer, X, Download, FileText, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Printer, X, Download, FileText, ChevronLeft, ChevronRight, Eye, AlertTriangle } from 'lucide-react';
 import {
   RELATIONSHIP_CODES,
   GENDER_CODES,
@@ -62,6 +62,8 @@ export default function CensusProformaView({
 
   if (!isOpen || !household) return null;
 
+  const isDraft = household.status === 'draft';
+
   const handlePrint = () => {
     window.print();
   };
@@ -69,15 +71,27 @@ export default function CensusProformaView({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-sm flex flex-col overflow-hidden">
       {/* Top Action Bar (Hidden in Print) */}
-      <div className="bg-[#0B3B60] text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-md print:hidden">
+      <div className={`text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-md print:hidden ${
+        isDraft ? 'bg-rose-950 border-b-2 border-red-500' : 'bg-[#0B3B60]'
+      }`}>
         <div className="flex items-center gap-2.5">
           <FileText className="w-5 h-5 text-amber-300" />
           <div>
             <h2 className="text-sm sm:text-base font-extrabold leading-tight">
               आधिकारिक परिवार प्रपत्र (Official Census Schedule)
             </h2>
-            <div className="text-xs text-slate-200">
-              परिवार #{household.household_no} | मुखिया: {household.head_name || 'अज्ञात'} | कुल सदस्य: {members.length}
+            <div className="text-xs text-slate-200 flex items-center gap-2 mt-0.5">
+              <span>परिवार #{household.household_no} | मुखिया: {household.head_name || 'अज्ञात'} | कुल सदस्य: {members.length}</span>
+              {isDraft ? (
+                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-300 shadow-2xs">
+                  <AlertTriangle className="w-3 h-3 text-yellow-300" />
+                  <span>ड्राफ्ट (अपूर्ण - लॉक न करें)</span>
+                </span>
+              ) : (
+                <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs">
+                  ✓ पूर्ण प्रपत्र
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -126,8 +140,45 @@ export default function CensusProformaView({
       <div className="flex-1 overflow-auto bg-slate-200/90 p-2 sm:p-6 flex justify-center">
         <div
           id="census-print-container"
-          className="bg-white text-slate-950 w-full max-w-[1250px] shadow-2xl p-4 sm:p-6 border border-slate-400 print:border-0 print:shadow-none print:m-0 print:p-2 text-[11px] leading-tight select-text"
+          className={`w-full max-w-[1250px] shadow-2xl p-4 sm:p-6 relative overflow-hidden text-[11px] leading-tight select-text transition-all ${
+            isDraft
+              ? 'bg-[#fff1f2] border-4 border-red-600 shadow-red-200/60 print:bg-red-50/40 print:border-red-600'
+              : 'bg-white border border-slate-400 print:border-0 print:shadow-none'
+          } print:m-0 print:p-2`}
         >
+          {/* Background Watermark for DRAFT */}
+          {isDraft && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.05] select-none overflow-hidden z-0">
+              <span className="text-red-700 font-black text-6xl sm:text-8xl transform -rotate-45 whitespace-nowrap tracking-widest uppercase">
+                DRAFT • अपूर्ण प्रपत्र • DO NOT LOCK
+              </span>
+            </div>
+          )}
+
+          {/* Prominent Red Alert Banner for DRAFT */}
+          {isDraft && (
+            <div className="mb-3 bg-red-600 text-white p-2.5 sm:p-3 rounded-xl border-2 border-red-800 shadow-md flex items-center justify-between gap-3 relative z-10 animate-in fade-in">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-300 shrink-0 animate-bounce" />
+                <div>
+                  <div className="font-black text-xs sm:text-sm tracking-wide flex items-center gap-2 flex-wrap">
+                    <span>⚠️ ड्राफ्ट प्रपत्र (DRAFT SCHEDULE) — जानकारी अभी पूर्ण नहीं है!</span>
+                    <span className="bg-white text-red-700 text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-2xs">
+                      अपूर्ण प्रपत्र
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-red-100 font-medium mt-0.5">
+                    विशेष ध्यान दें: यह प्रपत्र अभी अधूरा (ड्राफ्ट) है। कृपया इस जानकारी को अंतिम समझकर गलती से भी लॉक न करें!
+                  </p>
+                </div>
+              </div>
+              <div className="hidden sm:block text-right shrink-0">
+                <span className="text-[10.5px] bg-red-800 border border-red-400 text-red-100 font-black px-2.5 py-1 rounded-lg">
+                  स्थिति: ड्राफ्ट (सत्यापन शेष)
+                </span>
+              </div>
+            </div>
+          )}
           {/* ===================== SIDE A ===================== */}
           {activeSide === 'A' && (
             <div className="space-y-2">
@@ -145,7 +196,11 @@ export default function CensusProformaView({
               </div>
 
               {/* Location & Household Identification Ribbon (Matching Schedule Top) */}
-              <div className="border border-slate-900 p-2 bg-slate-50/50 space-y-1.5 text-xs">
+              <div
+                className={`border p-2 space-y-1.5 text-xs ${
+                  isDraft ? 'border-red-400 bg-red-100/70' : 'border-slate-900 bg-slate-50/50'
+                }`}
+              >
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-300 pb-1.5">
                   <div>
                     <span className="font-bold">राज्य/संघ राज्य: </span>
@@ -225,7 +280,11 @@ export default function CensusProformaView({
               <div className="overflow-x-auto border-2 border-slate-900">
                 <table className="w-full border-collapse text-center text-[10.5px]">
                   <thead>
-                    <tr className="bg-slate-200 border-b border-slate-900 font-black text-slate-950">
+                    <tr
+                      className={`border-b font-black leading-tight ${
+                        isDraft ? 'bg-red-200/90 border-red-800 text-red-950' : 'bg-slate-200 border-slate-900 text-slate-950'
+                      }`}
+                    >
                       <th className="border-r border-slate-700 p-1 w-7">क्र. सं.</th>
                       <th className="border-r border-slate-700 p-1 min-w-[110px]">Q.1 व्यक्ति का नाम</th>
                       <th className="border-r border-slate-700 p-1 w-16">Q.2 सम्बन्ध [कोड]</th>
@@ -460,8 +519,16 @@ export default function CensusProformaView({
               </div>
 
               {/* Instructions footer matching schedule */}
-              <div className="border border-slate-400 p-1.5 text-[10px] text-slate-600 bg-slate-50/50 flex justify-between items-center">
-                <span>नोट: प्रगणक द्वारा सभी कोड अधिकृत कोड निर्देशिका अनुसार ही भरे जाने हैं।</span>
+              <div
+                className={`border p-1.5 text-[10px] flex justify-between items-center ${
+                  isDraft ? 'border-red-400 bg-red-100/70 text-red-950 font-bold' : 'border-slate-400 bg-slate-50/50 text-slate-600'
+                }`}
+              >
+                <span>
+                  {isDraft
+                    ? '⚠️ ड्राफ्ट प्रपत्र: जानकारी अपूर्ण है • कृपया अंतिम समझकर लॉक न करें।'
+                    : 'नोट: प्रगणक द्वारा सभी कोड अधिकृत कोड निर्देशिका अनुसार ही भरे जाने हैं।'}
+                </span>
                 <span className="font-bold">पृष्ठ 1 / साइड A समाप्त</span>
               </div>
             </div>
@@ -516,7 +583,11 @@ export default function CensusProformaView({
               <div className="overflow-x-auto border-2 border-slate-900">
                 <table className="w-full border-collapse text-center text-[10.5px]">
                   <thead>
-                    <tr className="bg-slate-200 border-b border-slate-900 font-black text-slate-950">
+                    <tr
+                      className={`border-b font-black leading-tight ${
+                        isDraft ? 'bg-red-200/90 border-red-800 text-red-950' : 'bg-slate-200 border-slate-900 text-slate-950'
+                      }`}
+                    >
                       <th className="border-r border-slate-700 p-1 w-7">क्र.</th>
                       <th className="border-r border-slate-700 p-1 min-w-[100px]">व्यक्ति का नाम</th>
                       <th className="border-r border-slate-700 p-1 w-12">Q.18 काम</th>
@@ -758,8 +829,16 @@ export default function CensusProformaView({
               </div>
 
               {/* Instructions footer matching schedule */}
-              <div className="border border-slate-400 p-1.5 text-[10px] text-slate-600 bg-slate-50/50 flex justify-between items-center">
-                <span>नोट: प्र. 31-33 के उत्तर सम्बन्धित महिला से सीधे तथा प्र. 36-40 में संख्या सावधानीपूर्वक दर्ज करें।</span>
+              <div
+                className={`border p-1.5 text-[10px] flex justify-between items-center ${
+                  isDraft ? 'border-red-400 bg-red-100/70 text-red-950 font-bold' : 'border-slate-400 bg-slate-50/50 text-slate-600'
+                }`}
+              >
+                <span>
+                  {isDraft
+                    ? '⚠️ ड्राफ्ट प्रपत्र: जानकारी अपूर्ण है • कृपया अंतिम समझकर लॉक न करें।'
+                    : 'नोट: प्र. 31-33 के उत्तर सम्बन्धित महिला से सीधे तथा प्र. 36-40 में संख्या सावधानीपूर्वक दर्ज करें।'}
+                </span>
                 <span className="font-bold">साइड B समाप्त | जनगणना प्रगणक हस्ताक्षर: __________________</span>
               </div>
             </div>

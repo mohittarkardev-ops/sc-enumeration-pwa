@@ -19,7 +19,8 @@ import {
   Copy,
   Check,
   Lock,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react';
 import { db } from '../db/db';
 import {
@@ -98,12 +99,53 @@ function HouseholdProformaSheet({
   settings,
   side = 'A' // 'A' or 'B'
 }) {
+  const isDraft = household.status === 'draft';
   const isSelfEnumerated = !!household.is_self_enumerated;
 
   return (
-    <div className="bg-white border-2 border-slate-900 shadow-md p-3 sm:p-4 mb-6 proforma-sheet text-slate-950 max-w-[1280px] mx-auto print:shadow-none print:border-2 print:border-black print:p-2 print:mb-0 print:page-break-after-always">
+    <div
+      className={`shadow-md p-3 sm:p-4 mb-6 proforma-sheet text-slate-950 max-w-[1280px] mx-auto relative overflow-hidden print:shadow-none print:p-2 print:mb-0 print:page-break-after-always transition-all ${
+        isDraft
+          ? 'bg-[#fff1f2] border-4 border-red-600 shadow-xl shadow-red-200/60 print:bg-red-50/40 print:border-red-600'
+          : 'bg-white border-2 border-slate-900 print:border-2 print:border-black'
+      }`}
+    >
+      {/* Background Watermark for DRAFT */}
+      {isDraft && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.05] select-none overflow-hidden z-0">
+          <span className="text-red-700 font-black text-6xl sm:text-8xl transform -rotate-45 whitespace-nowrap tracking-widest uppercase">
+            DRAFT • अपूर्ण प्रपत्र • DO NOT LOCK
+          </span>
+        </div>
+      )}
+
+      {/* Prominent Red Alert Banner for DRAFT */}
+      {isDraft && (
+        <div className="mb-3 bg-red-600 text-white p-2.5 sm:p-3 rounded-xl border-2 border-red-800 shadow-md flex items-center justify-between gap-3 relative z-10 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-300 shrink-0 animate-bounce" />
+            <div>
+              <div className="font-black text-xs sm:text-sm tracking-wide flex items-center gap-2 flex-wrap">
+                <span>⚠️ ड्राफ्ट प्रपत्र (DRAFT SCHEDULE) — जानकारी अभी पूर्ण नहीं है!</span>
+                <span className="bg-white text-red-700 text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-2xs">
+                  अपूर्ण प्रपत्र
+                </span>
+              </div>
+              <p className="text-[11px] text-red-100 font-medium mt-0.5">
+                विशेष ध्यान दें: यह प्रपत्र अभी अधूरा (ड्राफ्ट) है। कृपया इस जानकारी को अंतिम समझकर गलती से भी लॉक न करें!
+              </p>
+            </div>
+          </div>
+          <div className="hidden sm:block text-right shrink-0">
+            <span className="text-[10.5px] bg-red-800 border border-red-400 text-red-100 font-black px-2.5 py-1 rounded-lg">
+              स्थिति: ड्राफ्ट (सत्यापन शेष)
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ── Official Government Header ── */}
-      <div className="border-b-2 border-slate-900 pb-2 mb-2">
+      <div className="border-b-2 border-slate-900 pb-2 mb-2 relative z-10">
         <div className="text-center relative">
           <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700">
             भारत सरकार • गृह मंत्रालय • महारजिस्ट्रार एवं जनगणना आयुक्त का कार्यालय
@@ -111,13 +153,22 @@ function HouseholdProformaSheet({
           <h1 className="text-base sm:text-xl font-black tracking-wide uppercase mt-0.5">
             परिवार प्रपत्र (HOUSEHOLD SCHEDULE)
           </h1>
-          <div className="absolute right-0 top-0 font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded print:text-black print:bg-white print:border print:border-black">
+          <div
+            className={`absolute right-0 top-0 font-mono text-xs font-black px-2.5 py-1 rounded shadow-xs print:text-black print:bg-white print:border print:border-black ${
+              isDraft ? 'bg-red-600 text-white border border-red-700' : 'bg-slate-900 text-white'
+            }`}
+          >
+            {isDraft ? '⚠️ ड्राफ्ट • ' : ''}
             {side === 'A' ? 'SIDE - A (प्र. 1 से 17)' : 'SIDE - B (प्र. 18 से 40)'}
           </div>
         </div>
 
         {/* Location & Identification Header Grid */}
-        <div className="mt-2 text-[10.5px] border border-slate-700 bg-slate-50/70 p-2 space-y-1.5">
+        <div
+          className={`mt-2 text-[10.5px] border ${
+            isDraft ? 'border-red-400 bg-red-100/70' : 'border-slate-700 bg-slate-50/70'
+          } p-2 space-y-1.5`}
+        >
           {/* Row 1: Location details */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-b border-slate-300 pb-1.5">
             <div>
@@ -225,7 +276,11 @@ function HouseholdProformaSheet({
         <div className="overflow-x-auto border-2 border-slate-900">
           <table className="w-full border-collapse text-center text-[10px] sm:text-[10.5px]">
             <thead>
-              <tr className="bg-slate-200 border-b-2 border-slate-900 font-black text-slate-950 leading-tight">
+              <tr
+                className={`border-b-2 font-black leading-tight ${
+                  isDraft ? 'bg-red-200/90 border-red-800 text-red-950' : 'bg-slate-200 border-slate-900 text-slate-950'
+                }`}
+              >
                 <th className="border-r border-slate-700 p-1 w-7">क्र. सं.</th>
                 <th className="border-r border-slate-700 p-1 min-w-[110px]">Q.1 व्यक्ति का नाम</th>
                 <th className="border-r border-slate-700 p-1 w-16">Q.2 सम्बन्ध [कोड]</th>
@@ -459,7 +514,11 @@ function HouseholdProformaSheet({
         <div className="overflow-x-auto border-2 border-slate-900">
           <table className="w-full border-collapse text-center text-[10px] sm:text-[10.5px]">
             <thead>
-              <tr className="bg-slate-200 border-b-2 border-slate-900 font-black text-slate-950 leading-tight">
+              <tr
+                className={`border-b-2 font-black leading-tight ${
+                  isDraft ? 'bg-red-200/90 border-red-800 text-red-950' : 'bg-slate-200 border-slate-900 text-slate-950'
+                }`}
+              >
                 <th className="border-r border-slate-700 p-1 w-7">क्र.</th>
                 <th className="border-r border-slate-700 p-1 min-w-[100px]">नाम (साइड A से)</th>
                 <th className="border-r border-slate-700 p-1 w-11">Q.18 काम</th>
@@ -702,8 +761,17 @@ function HouseholdProformaSheet({
       )}
 
       {/* ── Official Footer ── */}
-      <div className="mt-2 border-t border-slate-600 pt-1.5 flex items-center justify-between text-[10px] text-slate-700 font-bold">
+      <div
+        className={`mt-2 border-t pt-1.5 flex items-center justify-between text-[10px] font-bold ${
+          isDraft ? 'border-red-400 text-red-950 bg-red-100/70 p-2 rounded' : 'border-slate-600 text-slate-700'
+        }`}
+      >
         <div>
+          {isDraft && (
+            <span className="text-red-700 font-black">
+              ⚠️ ड्राफ्ट प्रतिलिपि: सत्यापन शेष • कृपया अंतिम समझकर लॉक न करें &nbsp;|&nbsp;
+            </span>
+          )}
           प्रगणक हस्ताक्षर: ____________________ &nbsp;|&nbsp; दिनांक: {new Date().toLocaleDateString('en-GB')}
         </div>
         <div className="font-mono text-slate-900">
@@ -1126,12 +1194,29 @@ export default function RegisterBookView({ settings, onBack, isReadOnly = false 
               return (
                 <div key={h.local_id || hIdx} className="space-y-4">
                   {/* Visual separation banner between households */}
-                  <div className="max-w-[1280px] mx-auto flex items-center justify-between text-xs text-slate-600 font-bold px-2 print:hidden">
-                    <span>
-                      क्रमांक #{hIdx + 1} • मुखिया: <strong>{h.head_name}</strong>
+                  <div
+                    className={`max-w-[1280px] mx-auto flex items-center justify-between text-xs font-bold px-2.5 py-1 rounded-lg print:hidden ${
+                      h.status === 'draft'
+                        ? 'bg-red-100 border border-red-300 text-red-950 shadow-2xs'
+                        : 'text-slate-600 bg-slate-100/70 border border-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {h.status === 'draft' ? (
+                        <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-black shadow-2xs">
+                          ✎ ड्राफ्ट (अधूरा)
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-black shadow-2xs">
+                          ✓ पूर्ण
+                        </span>
+                      )}
+                      <span>
+                        क्रमांक #{hIdx + 1} • मुखिया: <strong>{h.head_name}</strong>
+                      </span>
                     </span>
                     <span>
-                      भवन: <strong>{h.building_no}</strong> | मकान: <strong>{h.census_house_no}</strong> | परिवार: <strong>{h.household_no}</strong> | कुल सदस्य: <strong className="text-slate-900 font-black">{mems.length}</strong>
+                      भवन: <strong>{h.building_no}</strong> | मकान: <strong>{h.census_house_no}</strong> | परिवार: <strong>{h.household_no}</strong> | कुल सदस्य: <strong className={h.status === 'draft' ? 'text-red-900 font-black' : 'text-slate-900 font-black'}>{mems.length}</strong>
                     </span>
                   </div>
 
