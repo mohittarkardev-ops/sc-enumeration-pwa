@@ -44,7 +44,8 @@ import {
   MIGRATION_REASON_CODES
 } from '../constants/censusCodes';
 import { INDIAN_STATES } from '../constants/indiaLocations';
-import { getPotentialFathers, getPotentialMothers } from '../utils/familyTreeResolver';
+import { getPotentialFathers, getPotentialMothers, getMemberBirthYear, getMemberMarriageYear } from '../utils/familyTreeResolver';
+import { isEnglishText, transliterateEnglishToHindi } from '../utils/hindiTransliteration';
 
 
 export default function MemberModal({
@@ -62,6 +63,7 @@ export default function MemberModal({
   const [isAgeLocked, setIsAgeLocked] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannedLast4, setScannedLast4] = useState('');
+  const [spouseMarriageNotice, setSpouseMarriageNotice] = useState(null);
 
   const initialData = {
     local_id: existingMember?.local_id || ('mem_temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
@@ -184,14 +186,52 @@ export default function MemberModal({
         }
         setFormData(merged);
         const bYear = getBirthYear(merged);
+        let mYear = '';
         if (merged.q6_age_at_marriage && bYear) {
-          setMarriageYear(String(bYear + Number(merged.q6_age_at_marriage)));
-        } else {
-          setMarriageYear('');
+          mYear = String(bYear + Number(merged.q6_age_at_marriage));
+        } else if (merged.marriage_year) {
+          mYear = String(merged.marriage_year);
         }
+
+        // 💑 Smart Couple Marriage Year Inheritance
+        let spouseInfo = null;
+        if (Number(merged.q5_marital_status) === 2) {
+          const sNo = Number(merged.serial_no);
+          const spouse = householdMembers.find(m => 
+            (merged.q7_spouse_serial_no && Number(m.serial_no) === Number(merged.q7_spouse_serial_no)) ||
+            (Number(m.q7_spouse_serial_no) === sNo && m.serial_no !== sNo) ||
+            (sNo === 1 && Number(m.q2_relationship) === 2) ||
+            (Number(merged.q2_relationship) === 2 && (m.serial_no === 1 || Number(m.q2_relationship) === 1))
+          );
+          if (spouse) {
+            const sMYear = getMemberMarriageYear(spouse);
+            if (sMYear) {
+              spouseInfo = {
+                spouseName: spouse.q1_name || `सदस्य #${spouse.serial_no}`,
+                spouseSerialNo: spouse.serial_no,
+                marriageYear: sMYear
+              };
+              if (!mYear) {
+                mYear = String(sMYear);
+                merged.marriage_year = String(sMYear);
+                if (bYear && (!merged.q6_age_at_marriage || merged.q6_age_at_marriage === '')) {
+                  const calcAge = sMYear - bYear;
+                  if (calcAge > 0 && (!merged.q4b_age || calcAge <= Number(merged.q4b_age))) {
+                    merged.q6_age_at_marriage = String(calcAge);
+                  }
+                }
+              }
+            }
+          }
+        }
+        setMarriageYear(mYear);
+        setSpouseMarriageNotice(spouseInfo);
+        setFormData(merged);
       } else {
-        setMarriageYear('');
         const newData = { ...initialData, serial_no: serialNo };
+        let mYear = '';
+        let spouseInfo = null;
+
         // Smart prefill for Member #2: ONLY if Head is actually married (status 2) and no spouse exists yet
         const headIsMarried = headMember && Number(headMember.q5_marital_status) === 2;
         const spouseAlreadyExists = householdMembers.some(m => Number(m.q2_relationship) === 2);
@@ -214,6 +254,18 @@ export default function MemberModal({
           newData.q11_father_serial_no = null;
           newData.q12_mother_in_hh = false;
           newData.q12_mother_serial_no = null;
+
+          // 💑 Auto-inherit marriage year from Mukhiya!
+          const headMYear = getMemberMarriageYear(headMember);
+          if (headMYear) {
+            mYear = String(headMYear);
+            newData.marriage_year = String(headMYear);
+            spouseInfo = {
+              spouseName: headMember.q1_name || 'मुखिया',
+              spouseSerialNo: headMember.serial_no,
+              marriageYear: headMYear
+            };
+          }
         } else if (serialNo > 1) {
           newData.q2_relationship = 3; // बेटा/बेटी
           newData.q3_gender = 1;
@@ -252,11 +304,13 @@ export default function MemberModal({
           newData.q30_permanent_address_same = true;
           newData.q30_permanent_address = headMember.q30_permanent_address || '';
         }
+        setMarriageYear(mYear);
+        setSpouseMarriageNotice(spouseInfo);
         setIsAgeLocked(false);
         setFormData(newData);
       }
     }
-  }, [isOpen, serialNo, existingMember, headMember]);
+  }, [isOpen, serialNo, existingMember, headMember, householdMembers]);
 
   if (!isOpen) return null;
 
@@ -462,7 +516,9 @@ export default function MemberModal({
     if (!parsed) return;
     setFormData((prev) => {
       const updated = { ...prev };
-      if (parsed.name) updated.q1_name = parsed.name;
+      if (parsed.name) {
+        updated.q1_name = isEnglishText(parsed.name) ? transliterateEnglishToHindi(parsed.name) : parsed.name;
+      }
       if (parsed.gender) updated.q3_gender = parsed.gender;
       if (parsed.dob) {
         updated.q4a_dob = parsed.dob;
@@ -617,6 +673,11 @@ export default function MemberModal({
       }
     }
 
+    cleaned.marriage_year = marriageYear || cleaned.marriage_year;
+    if (isEnglishText(cleaned.q1_name)) {
+      cleaned.q1_name = transliterateEnglishToHindi(cleaned.q1_name);
+    }
+
     onSave(cleaned);
   };
 
@@ -752,12 +813,38 @@ export default function MemberModal({
                   type="text"
                   value={formData.q1_name}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="व्यक्ति का वास्तविक नाम दर्ज करें"
+                  onBlur={() => {
+                    if (isEnglishText(formData.q1_name)) {
+                      handleNameChange(transliterateEnglishToHindi(formData.q1_name));
+                    }
+                  }}
+                  placeholder="व्यक्ति का वास्तविक नाम दर्ज करें (उदा. रमेश कुमार या Ramesh Kumar)"
                   className={`w-full px-3.5 py-2.5 border rounded-xl text-sm sm:text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60] ${
                     errors.q1_name ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-white'
                   }`}
                   autoFocus
                 />
+
+                {/* Live English-to-Hindi Name Translation Suggestion */}
+                {isEnglishText(formData.q1_name) && (
+                  <div className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 p-2 rounded-xl text-xs mt-1 animate-fade-in">
+                    <div className="flex items-center gap-1.5 text-sky-950 min-w-0 truncate">
+                      <span className="font-bold shrink-0">🇮🇳 हिंदी में:</span>
+                      <span className="font-serifHindi font-bold text-sm text-[#0B3B60] truncate">
+                        "{transliterateEnglishToHindi(formData.q1_name)}"
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNameChange(transliterateEnglishToHindi(formData.q1_name))}
+                      className="shrink-0 px-2.5 py-1 bg-[#0B3B60] hover:bg-[#134D7E] text-white rounded-lg font-bold text-[11px] shadow-xs active:scale-95 transition-all flex items-center gap-1"
+                      title="हिंदी में रूपांतरित करें"
+                    >
+                      <span>हिंदी में बदलें</span>
+                      <span className="text-amber-300">✓</span>
+                    </button>
+                  </div>
+                )}
                 <p className="text-xs text-slate-500 flex items-center gap-1">
                   <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span>आधिकारिक निर्देश: व्यक्ति का पूरा नाम बिना किसी उपाधि या उपनाम के लिखें।</span>
@@ -1037,6 +1124,15 @@ export default function MemberModal({
                       </div>
 
                       {/* Helper Messages */}
+                      {spouseMarriageNotice && (
+                        <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg font-medium flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            जीवनसाथी (क्र. {spouseMarriageNotice.spouseSerialNo} - {spouseMarriageNotice.spouseName}) से विवाह वर्ष <strong>{spouseMarriageNotice.marriageYear}</strong> स्वतः लिंक हुआ।
+                          </span>
+                        </div>
+                      )}
+
                       {marriageYear && birthYear && formData.q6_age_at_marriage ? (
                         <p className="text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />

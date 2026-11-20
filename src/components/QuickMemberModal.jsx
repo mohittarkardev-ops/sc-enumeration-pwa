@@ -10,6 +10,7 @@ import {
 import { sanitizeText, sanitizeNumeric, formatDobInput, parseAndValidateDob } from '../utils/validation';
 import AadhaarQRScanner from './AadhaarQRScanner';
 import AadhaarDigitInput from './AadhaarDigitInput';
+import { isEnglishText, transliterateEnglishToHindi } from '../utils/hindiTransliteration';
 
 export default function QuickMemberModal({
   isOpen,
@@ -126,7 +127,9 @@ export default function QuickMemberModal({
   // Handle Aadhaar QR scan result
   const handleScanSuccess = (parsed) => {
     if (!parsed) return;
-    if (parsed.name) setName(parsed.name);
+    if (parsed.name) {
+      setName(isEnglishText(parsed.name) ? transliterateEnglishToHindi(parsed.name) : parsed.name);
+    }
     if (parsed.gender) setGender(parsed.gender);
     if (parsed.dob) {
       setDob(parsed.dob);
@@ -212,11 +215,12 @@ export default function QuickMemberModal({
   };
 
   const handleSubmit = (addAnother = false) => {
-    const cleanName = sanitizeText(name);
-    if (!cleanName) {
+    const rawName = sanitizeText(name);
+    if (!rawName) {
       setErrorMsg('कृपया सदस्य का नाम दर्ज करें।');
       return;
     }
+    const cleanName = isEnglishText(rawName) ? transliterateEnglishToHindi(rawName) : rawName;
 
     const finalAge = age !== '' ? parseInt(age, 10) : 0;
 
@@ -358,10 +362,36 @@ export default function QuickMemberModal({
                 setName(e.target.value);
                 if (errorMsg) setErrorMsg('');
               }}
-              placeholder="व्यक्ति का नाम दर्ज करें (उदा. रमेश कुमार)"
+              onBlur={() => {
+                if (isEnglishText(name)) {
+                  setName(transliterateEnglishToHindi(name));
+                }
+              }}
+              placeholder="व्यक्ति का नाम दर्ज करें (उदा. रमेश कुमार या Ramesh Kumar)"
               className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-base font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3B60]/20 focus:border-[#0B3B60]"
               autoFocus
             />
+
+            {/* Live English-to-Hindi Name Translation Suggestion */}
+            {isEnglishText(name) && (
+              <div className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 p-2 rounded-xl text-xs mt-1 animate-fade-in">
+                <div className="flex items-center gap-1.5 text-sky-950 min-w-0 truncate">
+                  <span className="font-bold shrink-0">🇮🇳 हिंदी में:</span>
+                  <span className="font-serifHindi font-bold text-sm text-[#0B3B60] truncate">
+                    "{transliterateEnglishToHindi(name)}"
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setName(transliterateEnglishToHindi(name))}
+                  className="shrink-0 px-2.5 py-1 bg-[#0B3B60] hover:bg-[#134D7E] text-white rounded-lg font-bold text-[11px] shadow-xs active:scale-95 transition-all flex items-center gap-1"
+                  title="हिंदी में रूपांतरित करें"
+                >
+                  <span>हिंदी में बदलें</span>
+                  <span className="text-amber-300">✓</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 2. मुखिया से संबंध */}

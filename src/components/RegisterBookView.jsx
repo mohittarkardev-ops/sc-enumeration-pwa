@@ -32,6 +32,7 @@ import {
   COMMUTE_MODE_CODES,
   MIGRATION_REASON_CODES
 } from '../constants/censusCodes';
+import { formatBilingualName, transliterateEnglishToHindi } from '../utils/hindiTransliteration';
 
 /**
  * DigitBoxes: Official Census digit / character boxes matching the paper proforma
@@ -266,9 +267,22 @@ function HouseholdProformaSheet({
                     {/* S.No */}
                     <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
 
-                    {/* Q.1 Name */}
+                    {/* Q.1 Name (Bilingual Hindi & English) */}
                     <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">
-                      {m.q1_name}
+                      {(() => {
+                        const b = formatBilingualName(m.q1_name);
+                        if (b.isTransliterated) {
+                          return (
+                            <div className="flex flex-col leading-tight">
+                              <span className="font-serifHindi font-bold text-slate-950 text-xs sm:text-[13px]">{b.hindi}</span>
+                              <span className="text-[9.5px] text-slate-500 font-mono font-medium tracking-tight uppercase print:text-black">{b.english}</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="font-serifHindi font-bold text-slate-950 text-xs sm:text-[13px]">{m.q1_name}</span>
+                        );
+                      })()}
                     </td>
 
                     {/* Q.2 Relationship */}
@@ -493,9 +507,22 @@ function HouseholdProformaSheet({
                     {/* S.No */}
                     <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
 
-                    {/* Name */}
+                    {/* Name (Bilingual Hindi & English) */}
                     <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">
-                      {m.q1_name}
+                      {(() => {
+                        const b = formatBilingualName(m.q1_name);
+                        if (b.isTransliterated) {
+                          return (
+                            <div className="flex flex-col leading-tight">
+                              <span className="font-serifHindi font-bold text-slate-950 text-xs sm:text-[13px]">{b.hindi}</span>
+                              <span className="text-[9.5px] text-slate-500 font-mono font-medium tracking-tight uppercase print:text-black">{b.english}</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className="font-serifHindi font-bold text-slate-950 text-xs sm:text-[13px]">{m.q1_name}</span>
+                        );
+                      })()}
                     </td>
 
                     {/* Q.18 Work Status */}
@@ -760,19 +787,25 @@ export default function RegisterBookView({ settings, onBack }) {
     load();
   }, [settings]);
 
-  // Filter households
+  // Filter households with bilingual search (searches Hindi and English seamlessly)
   const filtered = households.filter((h) => {
     const q = searchQuery.toLowerCase().trim();
+    if (!q) {
+      return selectedSection === 'all' || String(h.village_section) === selectedSection;
+    }
+    const qHindi = transliterateEnglishToHindi(q);
     const matchesSearch =
-      !q ||
-      (h.head_name && h.head_name.toLowerCase().includes(q)) ||
+      (h.head_name && (h.head_name.toLowerCase().includes(q) || (qHindi && h.head_name.includes(qHindi)))) ||
       String(h.building_no).includes(q) ||
       String(h.census_house_no).includes(q) ||
       String(h.household_no).includes(q) ||
       (h.se_id && h.se_id.toLowerCase().includes(q)) ||
-      (membersMap[h.local_id] || []).some(
-        (m) => m.q1_name && m.q1_name.toLowerCase().includes(q)
-      );
+      (membersMap[h.local_id] || []).some((m) => {
+        if (!m.q1_name) return false;
+        const nLow = m.q1_name.toLowerCase();
+        const nHindi = transliterateEnglishToHindi(m.q1_name);
+        return nLow.includes(q) || nHindi.includes(q) || (qHindi && (nLow.includes(qHindi) || nHindi.includes(qHindi)));
+      });
 
     const matchesSection =
       selectedSection === 'all' || String(h.village_section) === selectedSection;

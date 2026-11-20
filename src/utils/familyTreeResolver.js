@@ -9,6 +9,40 @@
  * NEVER assuming arbitrary serial numbers (e.g. handles widower with son as Member #2 cleanly).
  */
 
+export const getMemberBirthYear = (mem) => {
+  if (!mem) return null;
+  if (mem.q4a_dob && typeof mem.q4a_dob === 'string' && mem.q4a_dob.length === 10) {
+    const parts = mem.q4a_dob.split('/');
+    if (parts.length === 3 && parts[2].length === 4) {
+      const y = parseInt(parts[2], 10);
+      if (!isNaN(y) && y > 1900 && y <= new Date().getFullYear()) {
+        return y;
+      }
+    }
+  }
+  const age = Number(mem.q4b_age);
+  if (!isNaN(age) && age >= 0) {
+    return new Date().getFullYear() - age;
+  }
+  return null;
+};
+
+export const getMemberMarriageYear = (mem) => {
+  if (!mem) return null;
+  const bYear = getMemberBirthYear(mem);
+  const ageAtMarriage = Number(mem.q6_age_at_marriage);
+  if (!isNaN(ageAtMarriage) && ageAtMarriage > 0 && bYear) {
+    const calc = bYear + ageAtMarriage;
+    if (calc >= 1950 && calc <= new Date().getFullYear()) {
+      return calc;
+    }
+  }
+  if (mem.marriage_year && Number(mem.marriage_year) >= 1950 && Number(mem.marriage_year) <= new Date().getFullYear()) {
+    return Number(mem.marriage_year);
+  }
+  return null;
+};
+
 export const resolveFamilyRelationships = (members = []) => {
   if (!Array.isArray(members) || members.length === 0) return [];
 
@@ -29,7 +63,7 @@ export const resolveFamilyRelationships = (members = []) => {
   const marriedSons = sons.filter((m) => Number(m.q5_marital_status) === 2);
   const daughtersInLaw = members.filter((m) => Number(m.q2_relationship) === 4);
 
-  return members.map((m) => {
+  const resolvedMembers = members.map((m) => {
     const sNo = m.serial_no;
     const rel = Number(m.q2_relationship);
     const gender = Number(m.q3_gender);
@@ -209,6 +243,54 @@ export const resolveFamilyRelationships = (members = []) => {
       q14a_mother_tongue: finalMotherTongue,
       q30_permanent_address: finalAddress
     };
+  });
+
+  // ==========================================
+  // 4. COUPLE MARRIAGE YEAR AUTO-SYNCHRONIZATION (Husband & Wife)
+  // ==========================================
+  // If two persons are husband and wife, their marriage year is identical.
+  // Discover shared marriage year and auto-calculate q6_age_at_marriage for both.
+  const coupleMarriageYears = new Map();
+
+  // First pass: locate known marriage year for each husband-wife pair
+  resolvedMembers.forEach((m) => {
+    if (Number(m.q5_marital_status) === 2 && m.q7_spouse_serial_no) {
+      const spouseSNo = Number(m.q7_spouse_serial_no);
+      if (spouseSNo > 0) {
+        const pairKey = [Math.min(m.serial_no, spouseSNo), Math.max(m.serial_no, spouseSNo)].join('_');
+        const mYear = getMemberMarriageYear(m);
+        if (mYear && !coupleMarriageYears.has(pairKey)) {
+          coupleMarriageYears.set(pairKey, mYear);
+        }
+      }
+    }
+  });
+
+  // Second pass: apply and synchronize marriage year & marriage age across both spouses
+  return resolvedMembers.map((m) => {
+    if (Number(m.q5_marital_status) === 2 && m.q7_spouse_serial_no) {
+      const spouseSNo = Number(m.q7_spouse_serial_no);
+      if (spouseSNo > 0) {
+        const pairKey = [Math.min(m.serial_no, spouseSNo), Math.max(m.serial_no, spouseSNo)].join('_');
+        const sharedMYear = coupleMarriageYears.get(pairKey);
+        if (sharedMYear) {
+          const bYear = getMemberBirthYear(m);
+          let finalAgeAtMarriage = m.q6_age_at_marriage;
+          if ((!finalAgeAtMarriage || finalAgeAtMarriage === '') && bYear) {
+            const calcAge = sharedMYear - bYear;
+            if (calcAge > 0 && (!m.q4b_age || calcAge <= Number(m.q4b_age))) {
+              finalAgeAtMarriage = String(calcAge);
+            }
+          }
+          return {
+            ...m,
+            marriage_year: String(sharedMYear),
+            q6_age_at_marriage: finalAgeAtMarriage || m.q6_age_at_marriage
+          };
+        }
+      }
+    }
+    return m;
   });
 };
 
