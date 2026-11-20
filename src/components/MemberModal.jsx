@@ -43,7 +43,12 @@ import {
   COMMUTE_MODE_CODES,
   MIGRATION_REASON_CODES
 } from '../constants/censusCodes';
-import { INDIAN_STATES } from '../constants/indiaLocations';
+import { 
+  INDIAN_STATES, 
+  getDistrictsForState, 
+  formatBirthplace, 
+  LOCAL_VILLAGE_SUGGESTIONS 
+} from '../constants/indiaLocations';
 import { getPotentialFathers, getPotentialMothers, getMemberBirthYear, getMemberMarriageYear } from '../utils/familyTreeResolver';
 import { isEnglishText, transliterateEnglishToHindi } from '../utils/hindiTransliteration';
 
@@ -90,6 +95,9 @@ export default function MemberModal({
     q11_father_alive: true,
     q11_father_dob: '',
     q11_father_birthplace: '',
+    q11_father_birth_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+    q11_father_birth_district: 'मथुरा (Mathura)',
+    q11_father_birth_village: '',
     q11_father_religion: 1,
     q12_mother_in_hh: false,
     q12_mother_serial_no: '',
@@ -97,6 +105,9 @@ export default function MemberModal({
     q12_mother_alive: true,
     q12_mother_dob: '',
     q12_mother_birthplace: '',
+    q12_mother_birth_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+    q12_mother_birth_district: 'मथुरा (Mathura)',
+    q12_mother_birth_village: '',
     q12_mother_religion: 1,
     q13a_disabled: 2,
     q13b_disability_types: [],
@@ -121,9 +132,13 @@ export default function MemberModal({
     q25c_travel_mode: 0,
     q26_birth_place_type: 'here',
     q26_birth_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+    q26_birth_district: 'मथुरा (Mathura)',
+    q26_birth_village: '',
     q26_birth_place_details: '',
     q27_last_residence_type: 'here',
     q27_last_residence_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+    q27_last_residence_district: 'मथुरा (Mathura)',
+    q27_last_residence_village: '',
     q27_last_residence_details: '',
     q27b_rural_urban: 1,
     q28_migration_reason: '',
@@ -1533,9 +1548,34 @@ export default function MemberModal({
                         type="text"
                         value={formData.q11_father_name || ''}
                         onChange={(e) => setFormData({ ...formData, q11_father_name: sanitizeName(e.target.value) })}
-                        placeholder="पिता का नाम दर्ज करें"
+                        onBlur={() => {
+                          if (isEnglishText(formData.q11_father_name)) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              q11_father_name: transliterateEnglishToHindi(prev.q11_father_name)
+                            }));
+                          }
+                        }}
+                        placeholder="पिता का नाम दर्ज करें (उदा. राम बाबू या Ram Babu)"
                         className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold"
                       />
+                      {isEnglishText(formData.q11_father_name) && (
+                        <div className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 p-2 rounded-xl text-xs mt-1 animate-fade-in">
+                          <span className="font-bold text-sky-950 truncate">
+                            🇮🇳 हिंदी: <span className="font-serifHindi font-bold text-[#0B3B60]">"{transliterateEnglishToHindi(formData.q11_father_name)}"</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({
+                              ...prev,
+                              q11_father_name: transliterateEnglishToHindi(prev.q11_father_name)
+                            }))}
+                            className="px-2 py-0.5 bg-[#0B3B60] text-white rounded font-bold text-[11px] shrink-0 active:scale-95 transition-all"
+                          >
+                            हिंदी में बदलें ✓
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
@@ -1592,20 +1632,103 @@ export default function MemberModal({
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
-                          जन्म स्थान (राज्य/जिला/देश)
+                    {/* पिता का जन्म स्थान (राज्य ➔ जिला ➔ गाँव/कस्बा) */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          पिता का जन्म स्थान (राज्य ➔ जिला ➔ गाँव/कस्बा)
                           {formData.q11_father_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
+                        <span className="text-[11px] text-[#0B3B60] font-bold bg-sky-50 border border-sky-100 px-2 py-0.5 rounded truncate max-w-[220px]">
+                          {formData.q11_father_birthplace || 'उत्तर प्रदेश, मथुरा'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* 1. राज्य Dropdown */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-0.5">१. राज्य (State)</label>
+                          <select
+                            value={formData.q11_father_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)'}
+                            onChange={(e) => {
+                              const newState = e.target.value;
+                              const districts = getDistrictsForState(newState);
+                              const newDistrict = districts[0] || '';
+                              setFormData((prev) => ({
+                                ...prev,
+                                q11_father_birth_state: newState,
+                                q11_father_birth_district: newDistrict,
+                                q11_father_birthplace: formatBirthplace(newState, newDistrict, prev.q11_father_birth_village)
+                              }));
+                            }}
+                            className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white"
+                          >
+                            {INDIAN_STATES.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 2. जिला Dropdown (Conditioned on State!) */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-0.5">२. जिला (District)</label>
+                          <select
+                            value={formData.q11_father_birth_district || 'मथुरा (Mathura)'}
+                            onChange={(e) => {
+                              const newDistrict = e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                q11_father_birth_district: newDistrict,
+                                q11_father_birthplace: formatBirthplace(prev.q11_father_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', newDistrict, prev.q11_father_birth_village)
+                              }));
+                            }}
+                            className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white"
+                          >
+                            {getDistrictsForState(formData.q11_father_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)').map((d) => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* 3. गाँव / कस्बा / तहसील */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-0.5">३. गाँव / कस्बा / तहसील (Village / Town)</label>
                         <input
                           type="text"
-                          value={formData.q11_father_birthplace || ''}
-                          onChange={(e) => setFormData({ ...formData, q11_father_birthplace: sanitizeText(e.target.value) })}
-                          placeholder="उदा. मथुरा, उ.प्र."
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                          value={formData.q11_father_birth_village || ''}
+                          onChange={(e) => {
+                            const v = sanitizeText(e.target.value);
+                            setFormData((prev) => ({
+                              ...prev,
+                              q11_father_birth_village: v,
+                              q11_father_birthplace: formatBirthplace(prev.q11_father_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', prev.q11_father_birth_district || 'मथुरा (Mathura)', v)
+                            }));
+                          }}
+                          placeholder="गाँव या कस्बे का नाम दर्ज करें (अथवा नीचे से चुनें)"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                         />
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-1">
+                          {LOCAL_VILLAGE_SUGGESTIONS.slice(0, 6).map((sug) => (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => {
+                                const val = sug.includes('Here') ? 'इसी गांव में' : sug;
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  q11_father_birth_village: val,
+                                  q11_father_birthplace: formatBirthplace(prev.q11_father_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', prev.q11_father_birth_district || 'मथुरा (Mathura)', val)
+                                }));
+                              }}
+                              className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-700 whitespace-nowrap active:scale-95 transition-all"
+                            >
+                              {sug}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                    </div>
 
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
@@ -1622,7 +1745,6 @@ export default function MemberModal({
                         </select>
                       </div>
                     </div>
-                  </div>
                 )}
               </div>
 
@@ -1723,9 +1845,34 @@ export default function MemberModal({
                         type="text"
                         value={formData.q12_mother_name || ''}
                         onChange={(e) => setFormData({ ...formData, q12_mother_name: sanitizeName(e.target.value) })}
-                        placeholder="माता का नाम दर्ज करें"
+                        onBlur={() => {
+                          if (isEnglishText(formData.q12_mother_name)) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              q12_mother_name: transliterateEnglishToHindi(prev.q12_mother_name)
+                            }));
+                          }
+                        }}
+                        placeholder="माता का नाम दर्ज करें (उदा. सुशीला देवी या Sushila Devi)"
                         className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm sm:text-base bg-white font-bold"
                       />
+                      {isEnglishText(formData.q12_mother_name) && (
+                        <div className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 p-2 rounded-xl text-xs mt-1 animate-fade-in">
+                          <span className="font-bold text-sky-950 truncate">
+                            🇮🇳 हिंदी: <span className="font-serifHindi font-bold text-[#0B3B60]">"{transliterateEnglishToHindi(formData.q12_mother_name)}"</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({
+                              ...prev,
+                              q12_mother_name: transliterateEnglishToHindi(prev.q12_mother_name)
+                            }))}
+                            className="px-2 py-0.5 bg-[#0B3B60] text-white rounded font-bold text-[11px] shrink-0 active:scale-95 transition-all"
+                          >
+                            हिंदी में बदलें ✓
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
@@ -1782,20 +1929,103 @@ export default function MemberModal({
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
-                          जन्म स्थान (राज्य/जिला/देश)
+                    {/* माता का जन्म स्थान (राज्य ➔ जिला ➔ गाँव/मायका) */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                          माता का जन्म स्थान (राज्य ➔ जिला ➔ गाँव/मायका)
                           {formData.q12_mother_alive === false && <span className="text-[10px] text-slate-500 font-normal ml-1">(ऐच्छिक)</span>}
                         </label>
+                        <span className="text-[11px] text-[#0B3B60] font-bold bg-sky-50 border border-sky-100 px-2 py-0.5 rounded truncate max-w-[220px]">
+                          {formData.q12_mother_birthplace || 'उत्तर प्रदेश, मथुरा'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* 1. राज्य Dropdown */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-0.5">१. राज्य (State)</label>
+                          <select
+                            value={formData.q12_mother_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)'}
+                            onChange={(e) => {
+                              const newState = e.target.value;
+                              const districts = getDistrictsForState(newState);
+                              const newDistrict = districts[0] || '';
+                              setFormData((prev) => ({
+                                ...prev,
+                                q12_mother_birth_state: newState,
+                                q12_mother_birth_district: newDistrict,
+                                q12_mother_birthplace: formatBirthplace(newState, newDistrict, prev.q12_mother_birth_village)
+                              }));
+                            }}
+                            className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white"
+                          >
+                            {INDIAN_STATES.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 2. जिला Dropdown (Conditioned on State!) */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-0.5">२. जिला (District)</label>
+                          <select
+                            value={formData.q12_mother_birth_district || 'मथुरा (Mathura)'}
+                            onChange={(e) => {
+                              const newDistrict = e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                q12_mother_birth_district: newDistrict,
+                                q12_mother_birthplace: formatBirthplace(prev.q12_mother_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', newDistrict, prev.q12_mother_birth_village)
+                              }));
+                            }}
+                            className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-semibold bg-white"
+                          >
+                            {getDistrictsForState(formData.q12_mother_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)').map((d) => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* 3. गाँव / मायका / कस्बा */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-0.5">३. गाँव / मायका / कस्बा (Village / Town)</label>
                         <input
                           type="text"
-                          value={formData.q12_mother_birthplace || ''}
-                          onChange={(e) => setFormData({ ...formData, q12_mother_birthplace: sanitizeText(e.target.value) })}
-                          placeholder="उदा. मथुरा, उ.प्र."
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                          value={formData.q12_mother_birth_village || ''}
+                          onChange={(e) => {
+                            const v = sanitizeText(e.target.value);
+                            setFormData((prev) => ({
+                              ...prev,
+                              q12_mother_birth_village: v,
+                              q12_mother_birthplace: formatBirthplace(prev.q12_mother_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', prev.q12_mother_birth_district || 'मथुरा (Mathura)', v)
+                            }));
+                          }}
+                          placeholder="माता का मायका / गाँव दर्ज करें (अथवा नीचे से चुनें)"
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
                         />
+                        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-1">
+                          {LOCAL_VILLAGE_SUGGESTIONS.slice(0, 6).map((sug) => (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => {
+                                const val = sug.includes('Here') ? 'इसी गांव में' : sug;
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  q12_mother_birth_village: val,
+                                  q12_mother_birthplace: formatBirthplace(prev.q12_mother_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)', prev.q12_mother_birth_district || 'मथुरा (Mathura)', val)
+                                }));
+                              }}
+                              className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-700 whitespace-nowrap active:scale-95 transition-all"
+                            >
+                              {sug}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                    </div>
 
                       <div>
                         <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1">
@@ -1812,7 +2042,6 @@ export default function MemberModal({
                         </select>
                       </div>
                     </div>
-                  </div>
                 )}
               </div>
 
@@ -2553,9 +2782,13 @@ export default function MemberModal({
                     ...prev,
                     q26_birth_place_type: 'here',
                     q26_birth_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+                    q26_birth_district: 'मथुरा (Mathura)',
+                    q26_birth_village: '',
                     q26_birth_place_details: '',
                     q27_last_residence_type: 'here',
                     q27_last_residence_state: 'उत्तर प्रदेश (Uttar Pradesh)',
+                    q27_last_residence_district: 'मथुरा (Mathura)',
+                    q27_last_residence_village: '',
                     q27_last_residence_details: '',
                     q28_migration_reason: '',
                     q29_residence_duration_years: '',
@@ -2570,12 +2803,13 @@ export default function MemberModal({
 
               {/* Q.26 जन्म स्थान */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">प्र. 26 जन्म स्थान</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                  प्र. 26 जन्म स्थान (राज्य / जिला / गाँव)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
                   {[
-                    { code: 'here', label: 'इसी गांव में' },
-                    { code: 'india', label: 'अन्य (भारत)' },
-                    { code: 'outside', label: 'विदेश' }
+                    { code: 'here', label: '1 - इसी गांव में (गणना स्थल)' },
+                    { code: 'india', label: '2 - अन्यत्र (अन्य गांव / जिला / राज्य)' }
                   ].map((item) => (
                     <button
                       key={item.code}
@@ -2584,7 +2818,7 @@ export default function MemberModal({
                       className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[42px] border ${
                         formData.q26_birth_place_type === item.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-200'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       {item.label}
@@ -2593,34 +2827,102 @@ export default function MemberModal({
                 </div>
 
                 {formData.q26_birth_place_type === 'india' && (
-                  <div className="pt-2 border-t border-slate-200 space-y-2">
-                    <div>
-                      <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                        जन्म का राज्य चुनें
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={formData.q26_birth_state}
-                          onChange={(e) => setFormData({ ...formData, q26_birth_state: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
-                        >
-                          {INDIAN_STATES.map((st) => (
-                            <option key={st} value={st}>
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  <div className="pt-2 border-t border-slate-200 space-y-2.5 bg-slate-50/70 p-2.5 rounded-xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {/* राज्य */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          1. राज्य (State)
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={formData.q26_birth_state || 'उत्तर प्रदेश (Uttar Pradesh)'}
+                            onChange={(e) => {
+                              const newState = e.target.value;
+                              const availableDistricts = getDistrictsForState(newState);
+                              const newDistrict = availableDistricts[0] || '';
+                              setFormData({
+                                ...formData,
+                                q26_birth_state: newState,
+                                q26_birth_district: newDistrict,
+                                q26_birth_place_details: formatBirthplace(newState, newDistrict, formData.q26_birth_village)
+                              });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold bg-white text-slate-800"
+                          >
+                            {INDIAN_STATES.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      {/* जिला (राज्य के अनुसार फ़िल्टर) */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          2. जिला (District - राज्य आधारित)
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={formData.q26_birth_district || ''}
+                            onChange={(e) => {
+                              const newDistrict = e.target.value;
+                              setFormData({
+                                ...formData,
+                                q26_birth_district: newDistrict,
+                                q26_birth_place_details: formatBirthplace(formData.q26_birth_state, newDistrict, formData.q26_birth_village)
+                              });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold bg-white text-slate-800"
+                          >
+                            {getDistrictsForState(formData.q26_birth_state).map((dist) => (
+                              <option key={dist} value={dist}>{dist}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                        </div>
                       </div>
                     </div>
+
+                    {/* गाँव / कस्बा / तहसील */}
                     <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        3. गाँव / कस्बा / तहसील (Village / Town)
+                      </label>
                       <input
                         type="text"
-                        value={formData.q26_birth_place_details}
-                        onChange={(e) => setFormData({ ...formData, q26_birth_place_details: sanitizeText(e.target.value) })}
-                        placeholder="जिला अथवा गाँव का नाम"
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                        value={formData.q26_birth_village || ''}
+                        onChange={(e) => {
+                          const vName = sanitizeText(e.target.value);
+                          setFormData({
+                            ...formData,
+                            q26_birth_village: vName,
+                            q26_birth_place_details: formatBirthplace(formData.q26_birth_state, formData.q26_birth_district, vName)
+                          });
+                        }}
+                        placeholder="उदा. राया, बरसाना, छाता, गोवर्धन"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 font-medium"
                       />
+                      {/* Village suggestion chips */}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {LOCAL_VILLAGE_SUGGESTIONS.slice(1, 8).map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                q26_birth_village: chip,
+                                q26_birth_place_details: formatBirthplace(formData.q26_birth_state, formData.q26_birth_district, chip)
+                              });
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 rounded-md transition-colors"
+                          >
+                            + {chip}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2628,22 +2930,23 @@ export default function MemberModal({
 
               {/* Q.27 पूर्व निवास स्थान */}
               <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-sm space-y-2">
-                <label className="block text-xs sm:text-sm font-bold text-slate-900">प्र. 27 पूर्व निवास स्थान</label>
-                <div className="grid grid-cols-2 gap-1.5">
+                <label className="block text-xs sm:text-sm font-bold text-slate-900">
+                  प्र. 27 पूर्व निवास स्थान (Last Residence)
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { code: 'here', label: 'जन्म से यहीं' },
-                    { code: 'rural', label: 'अन्य ग्रामीण क्षेत्र' },
-                    { code: 'urban', label: 'अन्य शहरी क्षेत्र' },
-                    { code: 'outside', label: 'विदेश' }
+                    { code: 'here', label: '1 - जन्म से यहीं' },
+                    { code: 'rural', label: '2 - अन्य ग्रामीण' },
+                    { code: 'urban', label: '3 - अन्य शहरी' }
                   ].map((item) => (
                     <button
                       key={item.code}
                       type="button"
                       onClick={() => setFormData({ ...formData, q27_last_residence_type: item.code })}
-                      className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold min-h-[42px] border ${
+                      className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[42px] border ${
                         formData.q27_last_residence_type === item.code
                           ? 'bg-[#0B3B60] text-white border-[#072F5F]'
-                          : 'bg-white text-slate-700 border-slate-200'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       {item.label}
@@ -2652,25 +2955,83 @@ export default function MemberModal({
                 </div>
 
                 {formData.q27_last_residence_type !== 'here' && (
-                  <div className="pt-2 border-t border-slate-200 space-y-2">
-                    <div>
-                      <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1">
-                        पूर्व निवास का राज्य
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={formData.q27_last_residence_state}
-                          onChange={(e) => setFormData({ ...formData, q27_last_residence_state: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-slate-800 bg-white appearance-none pr-8 text-xs"
-                        >
-                          {INDIAN_STATES.map((st) => (
-                            <option key={st} value={st}>
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                  <div className="pt-2 border-t border-slate-200 space-y-2.5 bg-slate-50/70 p-2.5 rounded-xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {/* पूर्व निवास राज्य */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          1. पूर्व निवास राज्य
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={formData.q27_last_residence_state || 'उत्तर प्रदेश (Uttar Pradesh)'}
+                            onChange={(e) => {
+                              const newState = e.target.value;
+                              const availableDistricts = getDistrictsForState(newState);
+                              const newDistrict = availableDistricts[0] || '';
+                              setFormData({
+                                ...formData,
+                                q27_last_residence_state: newState,
+                                q27_last_residence_district: newDistrict,
+                                q27_last_residence_details: formatBirthplace(newState, newDistrict, formData.q27_last_residence_village)
+                              });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold bg-white text-slate-800"
+                          >
+                            {INDIAN_STATES.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                        </div>
                       </div>
+
+                      {/* पूर्व निवास जिला */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          2. पूर्व निवास जिला (राज्य आधारित)
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={formData.q27_last_residence_district || ''}
+                            onChange={(e) => {
+                              const newDistrict = e.target.value;
+                              setFormData({
+                                ...formData,
+                                q27_last_residence_district: newDistrict,
+                                q27_last_residence_details: formatBirthplace(formData.q27_last_residence_state, newDistrict, formData.q27_last_residence_village)
+                              });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold bg-white text-slate-800"
+                          >
+                            {getDistrictsForState(formData.q27_last_residence_state).map((dist) => (
+                              <option key={dist} value={dist}>{dist}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* गाँव / कस्बा */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        3. गाँव / कस्बा / तहसील
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.q27_last_residence_village || ''}
+                        onChange={(e) => {
+                          const vName = sanitizeText(e.target.value);
+                          setFormData({
+                            ...formData,
+                            q27_last_residence_village: vName,
+                            q27_last_residence_details: formatBirthplace(formData.q27_last_residence_state, formData.q27_last_residence_district, vName)
+                          });
+                        }}
+                        placeholder="उदा. आगरा, अलीगढ़, हाथरस, मथुरा"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-800 font-medium"
+                      />
                     </div>
 
                     <div>

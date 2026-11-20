@@ -87,8 +87,8 @@ export const exportAllDataToExcel = async () => {
       'Q.10(क) जाति संवर्ग': m.q10a_sc_st === 1 ? 'SC' : m.q10a_sc_st === 2 ? 'ST' : 'सामान्य / अन्य',
       'Q.10(ख) जाति कोड': m.q10b_caste_code || '',
       'Q.10(ग) जाति का नाम': m.q10c_caste_name || '',
-      'Q.11 पिता जीवित व क्र.सं.': m.q11_father_in_hh ? `हाँ (#${m.q11_father_serial_no})` : (m.q11_father_name || 'नहीं'),
-      'Q.12 माता जीवित व क्र.सं.': m.q12_mother_in_hh ? `हाँ (#${m.q12_mother_serial_no})` : (m.q12_mother_name || 'नहीं'),
+      'Q.11 पिता जीवित व क्र.सं.': m.q11_father_in_hh ? `हाँ (#${m.q11_father_serial_no})` : (m.q11_father_name ? `${m.q11_father_name} (${m.q11_father_birthplace || m.q11_father_birth_state || 'अन्य'})` : 'परिवार में नहीं'),
+      'Q.12 माता जीवित व क्र.सं.': m.q12_mother_in_hh ? `हाँ (#${m.q12_mother_serial_no})` : (m.q12_mother_name ? `${m.q12_mother_name} (${m.q12_mother_birthplace || m.q12_mother_birth_state || 'अन्य'})` : 'परिवार में नहीं'),
       'Q.13(क) दिव्यांगता': m.q13a_disabled === 1 ? 'हाँ' : 'नहीं',
       'Q.13(ख) दिव्यांगता प्रकार (गंभीरता क्रम)': (m.q13b_disability_types || []).map((code, idx) => {
         const found = DISABILITY_CODES.find(d => d.code === Number(code));
@@ -111,8 +111,8 @@ export const exportAllDataToExcel = async () => {
       'Q.25(क) कार्यस्थल दूरी (किमी)': Number(m.q18_work_last_year) <= 3 ? (m.q25a_travel_distance_km || '') : 'लागू नहीं',
       'Q.25(ख) यात्रा समय (मिनट)': Number(m.q18_work_last_year) <= 3 ? (m.q25b_travel_time_min || '') : 'लागू नहीं',
       'Q.25(ग) यात्रा साधन': Number(m.q18_work_last_year) <= 3 ? getLabel(COMMUTE_MODE_CODES, m.q25c_travel_mode) : 'लागू नहीं',
-      'Q.26 जन्म स्थान': m.q26_birth_place_type === 'here' ? 'गणना स्थल पर' : (m.q26_birth_state || 'अन्य'),
-      'Q.27 पूर्व निवास स्थान': m.q27_last_residence_type === 'here' ? 'जन्म से यहीं' : (m.q27_last_residence_state || m.q27_last_residence_details || 'अन्य'),
+      'Q.26 जन्म स्थान': m.q26_birth_place_type === 'here' ? 'गणना स्थल पर' : (m.q26_birth_place_details || m.q26_birth_state || 'अन्य'),
+      'Q.27 पूर्व निवास स्थान': m.q27_last_residence_type === 'here' ? 'जन्म से यहीं' : (m.q27_last_residence_details || m.q27_last_residence_state || 'अन्य'),
       'Q.27(ख) पूर्व निवास क्षेत्र': m.q27_last_residence_type === 'here' ? 'लागू नहीं' : (m.q27b_rural_urban === 2 ? '2 - शहरी' : '1 - ग्रामीण'),
       'Q.28 प्रवास कारण': getLabel(MIGRATION_REASON_CODES, m.q28_migration_reason),
       'Q.29 निवास अवधि (वर्ष)': m.q29_residence_duration_years || '',
