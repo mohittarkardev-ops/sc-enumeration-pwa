@@ -59,18 +59,8 @@ export default function CensusProformaView({
   settings = null
 }) {
   const [activeSide, setActiveSide] = useState('A'); // 'A' or 'B'
-  const [pageIndex, setPageIndex] = useState(0); // For pagination if members > 6
 
   if (!isOpen || !household) return null;
-
-  const MEMBERS_PER_SHEET = 6;
-  const totalSheets = Math.max(1, Math.ceil(members.length / MEMBERS_PER_SHEET));
-  const currentMembers = members.slice(pageIndex * MEMBERS_PER_SHEET, (pageIndex + 1) * MEMBERS_PER_SHEET);
-  // Pad to 6 rows to match the official pre-printed schedule
-  const paddedMembers = [...currentMembers];
-  while (paddedMembers.length < MEMBERS_PER_SHEET) {
-    paddedMembers.push(null);
-  }
 
   const handlePrint = () => {
     window.print();
@@ -112,27 +102,6 @@ export default function CensusProformaView({
               साइड - B (प्र. 18 से 40)
             </button>
           </div>
-
-          {/* Sheet Pagination if > 6 members */}
-          {totalSheets > 1 && (
-            <div className="flex items-center gap-1 bg-[#072F5F] px-2 py-1 rounded-lg border border-white/20 text-xs">
-              <button
-                disabled={pageIndex === 0}
-                onClick={() => setPageIndex((p) => p - 1)}
-                className="disabled:opacity-40 p-0.5"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="font-bold">पृष्ठ {pageIndex + 1}/{totalSheets}</span>
-              <button
-                disabled={pageIndex >= totalSheets - 1}
-                onClick={() => setPageIndex((p) => p + 1)}
-                className="disabled:opacity-40 p-0.5"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
 
           {/* Print Button */}
           <button
@@ -297,22 +266,20 @@ export default function CensusProformaView({
                           </div>
                         </td>
                       </tr>
+                    ) : members.length === 0 ? (
+                      <tr className="border-b border-slate-400 h-14">
+                        <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">1</td>
+                        <td className="border-r border-slate-400 text-center text-slate-400 text-xs italic py-4" colSpan={17}>
+                          परिवार में कोई सदस्य दर्ज नहीं है
+                        </td>
+                      </tr>
                     ) : (
-                      paddedMembers.map((m, idx) => {
-                      const rowNum = pageIndex * MEMBERS_PER_SHEET + idx + 1;
-                      if (!m) {
+                      members.map((m, idx) => {
+                        const rowNum = m.serial_no || idx + 1;
                         return (
-                          <tr key={`empty_${idx}`} className="border-b border-slate-400 h-14">
-                            <td className="border-r border-slate-400 font-bold font-mono text-slate-400">{rowNum}</td>
-                            <td className="border-r border-slate-400" colSpan={17}></td>
-                          </tr>
-                        );
-                      }
-
-                      return (
-                        <tr key={m.local_id || idx} className="border-b border-slate-900 font-medium h-14 hover:bg-blue-50/40">
-                          {/* S.No */}
-                          <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
+                          <tr key={m.local_id || idx} className="border-b border-slate-900 font-medium h-14 hover:bg-blue-50/40">
+                            {/* S.No */}
+                            <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{rowNum}</td>
 
                           {/* Q.1 Name */}
                           <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">
@@ -595,24 +562,22 @@ export default function CensusProformaView({
                           </div>
                         </td>
                       </tr>
+                    ) : members.length === 0 ? (
+                      <tr className="border-b border-slate-400 h-14">
+                        <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">1</td>
+                        <td className="border-r border-slate-400 text-center text-slate-400 text-xs italic py-4" colSpan={22}>
+                          परिवार में कोई सदस्य दर्ज नहीं है
+                        </td>
+                      </tr>
                     ) : (
-                      paddedMembers.map((m, idx) => {
-                      const rowNum = pageIndex * MEMBERS_PER_SHEET + idx + 1;
-                      if (!m) {
+                      members.map((m, idx) => {
+                        const rowNum = m.serial_no || idx + 1;
+                        const isEverMarriedFemale = Number(m.q3_gender) === 2 && Number(m.q5_marital_status) >= 2;
+
                         return (
-                          <tr key={`empty_b_${idx}`} className="border-b border-slate-400 h-14">
-                            <td className="border-r border-slate-400 font-bold font-mono text-slate-400">{rowNum}</td>
-                            <td className="border-r border-slate-400" colSpan={22}></td>
-                          </tr>
-                        );
-                      }
-
-                      const isEverMarriedFemale = Number(m.q3_gender) === 2 && Number(m.q5_marital_status) >= 2;
-
-                      return (
-                        <tr key={m.local_id || idx} className="border-b border-slate-900 font-medium h-14 hover:bg-amber-50/40">
-                          {/* S.No */}
-                          <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
+                          <tr key={m.local_id || idx} className="border-b border-slate-900 font-medium h-14 hover:bg-amber-50/40">
+                            {/* S.No */}
+                            <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{rowNum}</td>
 
                           {/* Name */}
                           <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">

@@ -89,24 +89,15 @@ function DateBoxes({ dobString }) {
   return <DigitBoxes value={combined} count={8} />;
 }
 
-const MEMBERS_PER_SHEET = 6;
-
 /**
- * Single Official Household Schedule (Side A or Side B)
+ * Single Official Household Schedule (Side A or Side B) - Full Continuous Family Serialization
  */
 function HouseholdProformaSheet({
   household,
   members = [],
   settings,
-  side = 'A', // 'A' or 'B'
-  sheetIndex = 0
+  side = 'A' // 'A' or 'B'
 }) {
-  const currentMembers = members.slice(sheetIndex * MEMBERS_PER_SHEET, (sheetIndex + 1) * MEMBERS_PER_SHEET);
-  const paddedMembers = [...currentMembers];
-  while (paddedMembers.length < MEMBERS_PER_SHEET) {
-    paddedMembers.push(null);
-  }
-
   const isSelfEnumerated = !!household.is_self_enumerated;
 
   return (
@@ -122,7 +113,6 @@ function HouseholdProformaSheet({
           </h1>
           <div className="absolute right-0 top-0 font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded print:text-black print:bg-white print:border print:border-black">
             {side === 'A' ? 'SIDE - A (प्र. 1 से 17)' : 'SIDE - B (प्र. 18 से 40)'}
-            {sheetIndex > 0 ? ` • पत्रक ${sheetIndex + 1}` : ''}
           </div>
         </div>
 
@@ -257,21 +247,20 @@ function HouseholdProformaSheet({
               </tr>
             </thead>
             <tbody>
-              {paddedMembers.map((m, idx) => {
-                const rowNum = sheetIndex * MEMBERS_PER_SHEET + idx + 1;
-                if (!m) {
+              {members.length === 0 ? (
+                <tr className="border-b border-slate-300 h-13">
+                  <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">1</td>
+                  <td className="border-r border-slate-300 text-center text-slate-400 text-xs italic py-4" colSpan={17}>
+                    परिवार में कोई सदस्य दर्ज नहीं है
+                  </td>
+                </tr>
+              ) : (
+                members.map((m, idx) => {
+                  const rowNum = m.serial_no || idx + 1;
                   return (
-                    <tr key={`empty_${idx}`} className="border-b border-slate-300 h-13">
-                      <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">{rowNum}</td>
-                      <td className="border-r border-slate-300" colSpan={17}></td>
-                    </tr>
-                  );
-                }
-
-                return (
-                  <tr key={m.local_id || idx} className="border-b border-slate-800 font-medium h-13 hover:bg-amber-50/30">
-                    {/* S.No */}
-                    <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
+                    <tr key={m.local_id || idx} className="border-b border-slate-800 font-medium h-13 hover:bg-amber-50/30">
+                      {/* S.No */}
+                      <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{rowNum}</td>
 
                     {/* Q.1 Name (Bilingual Hindi & English) */}
                     <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">
@@ -459,7 +448,7 @@ function HouseholdProformaSheet({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
@@ -497,21 +486,20 @@ function HouseholdProformaSheet({
               </tr>
             </thead>
             <tbody>
-              {paddedMembers.map((m, idx) => {
-                const rowNum = sheetIndex * MEMBERS_PER_SHEET + idx + 1;
-                if (!m) {
+              {members.length === 0 ? (
+                <tr className="border-b border-slate-300 h-13">
+                  <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">1</td>
+                  <td className="border-r border-slate-300 text-center text-slate-400 text-xs italic py-4" colSpan={22}>
+                    परिवार में कोई सदस्य दर्ज नहीं है
+                  </td>
+                </tr>
+              ) : (
+                members.map((m, idx) => {
+                  const rowNum = m.serial_no || idx + 1;
                   return (
-                    <tr key={`empty_b_${idx}`} className="border-b border-slate-300 h-13">
-                      <td className="border-r border-slate-400 font-bold font-mono text-slate-400 bg-slate-50">{rowNum}</td>
-                      <td className="border-r border-slate-300" colSpan={22}></td>
-                    </tr>
-                  );
-                }
-
-                return (
-                  <tr key={m.local_id || idx} className="border-b border-slate-800 font-medium h-13 hover:bg-amber-50/30">
-                    {/* S.No */}
-                    <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{m.serial_no}</td>
+                    <tr key={m.local_id || idx} className="border-b border-slate-800 font-medium h-13 hover:bg-amber-50/30">
+                      {/* S.No */}
+                      <td className="border-r border-slate-700 p-1 font-black font-mono bg-slate-100">{rowNum}</td>
 
                     {/* Name (Bilingual Hindi & English) */}
                     <td className="border-r border-slate-700 p-1 font-bold text-left text-slate-950">
@@ -707,7 +695,7 @@ function HouseholdProformaSheet({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
@@ -1100,23 +1088,21 @@ export default function RegisterBookView({ settings, onBack, isReadOnly = false 
             )}
           </div>
         ) : viewMode === 'book' ? (
-          /* Book Mode: Show current single family */
+          /* Book Mode: Show current single family in full continuous serialization */
           <div className="space-y-4">
             {(() => {
               const h = filtered[activeBookIndex];
               if (!h) return null;
               const mems = membersMap[h.local_id] || [];
-              const totalSheets = Math.max(1, Math.ceil(mems.length / MEMBERS_PER_SHEET));
 
-              return Array.from({ length: totalSheets }).map((_, sheetIdx) => (
-                <div key={`${h.local_id}_sheet_${sheetIdx}`} className="space-y-4">
+              return (
+                <div key={h.local_id} className="space-y-4">
                   {(viewSide === 'A' || viewSide === 'BOTH') && (
                     <HouseholdProformaSheet
                       household={h}
                       members={mems}
                       settings={settings}
                       side="A"
-                      sheetIndex={sheetIdx}
                     />
                   )}
                   {(viewSide === 'B' || viewSide === 'BOTH') && (
@@ -1125,19 +1111,17 @@ export default function RegisterBookView({ settings, onBack, isReadOnly = false 
                       members={mems}
                       settings={settings}
                       side="B"
-                      sheetIndex={sheetIdx}
                     />
                   )}
                 </div>
-              ));
+              );
             })()}
           </div>
         ) : (
-          /* Continuous Register Mode: Show all filtered families */
+          /* Continuous Register Mode: Show all filtered families in complete continuity */
           <div className="space-y-6">
             {filtered.map((h, hIdx) => {
               const mems = membersMap[h.local_id] || [];
-              const totalSheets = Math.max(1, Math.ceil(mems.length / MEMBERS_PER_SHEET));
 
               return (
                 <div key={h.local_id || hIdx} className="space-y-4">
@@ -1147,32 +1131,26 @@ export default function RegisterBookView({ settings, onBack, isReadOnly = false 
                       क्रमांक #{hIdx + 1} • मुखिया: <strong>{h.head_name}</strong>
                     </span>
                     <span>
-                      भवन: <strong>{h.building_no}</strong> | मकान: <strong>{h.census_house_no}</strong> | परिवार: <strong>{h.household_no}</strong>
+                      भवन: <strong>{h.building_no}</strong> | मकान: <strong>{h.census_house_no}</strong> | परिवार: <strong>{h.household_no}</strong> | कुल सदस्य: <strong className="text-slate-900 font-black">{mems.length}</strong>
                     </span>
                   </div>
 
-                  {Array.from({ length: totalSheets }).map((_, sheetIdx) => (
-                    <div key={`${h.local_id}_s_${sheetIdx}`} className="space-y-4">
-                      {(viewSide === 'A' || viewSide === 'BOTH') && (
-                        <HouseholdProformaSheet
-                          household={h}
-                          members={mems}
-                          settings={settings}
-                          side="A"
-                          sheetIndex={sheetIdx}
-                        />
-                      )}
-                      {(viewSide === 'B' || viewSide === 'BOTH') && (
-                        <HouseholdProformaSheet
-                          household={h}
-                          members={mems}
-                          settings={settings}
-                          side="B"
-                          sheetIndex={sheetIdx}
-                        />
-                      )}
-                    </div>
-                  ))}
+                  {(viewSide === 'A' || viewSide === 'BOTH') && (
+                    <HouseholdProformaSheet
+                      household={h}
+                      members={mems}
+                      settings={settings}
+                      side="A"
+                    />
+                  )}
+                  {(viewSide === 'B' || viewSide === 'BOTH') && (
+                    <HouseholdProformaSheet
+                      household={h}
+                      members={mems}
+                      settings={settings}
+                      side="B"
+                    />
+                  )}
                 </div>
               );
             })}
